@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FORGE — ADMIN</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0a0a0a;--panel:#0f0f0f;--border:#1a1a1a;
+  --white:#fff;--dim:#555;--red:#ff3333;--yellow:#ffd700;--green:#33ff99;
+  --hud:'Orbitron',monospace;--mono:'Share Tech Mono',monospace;
+}
+body{background:var(--bg);color:var(--white);font-family:var(--hud);min-height:100vh;}
+
+/* ── LOGIN ── */
+#login-screen{
+  position:fixed;inset:0;background:#050505;z-index:9999;
+  display:flex;align-items:center;justify-content:center;
+}
+.login-box{width:100%;max-width:360px;padding:0 24px;}
+.login-logo{font-size:20px;font-weight:900;letter-spacing:0.25em;text-align:center;margin-bottom:4px;}
+.login-sub{font-size:8px;color:#444;letter-spacing:0.2em;text-align:center;margin-bottom:40px;font-family:var(--mono);}
+.login-label{font-size:8px;color:#444;letter-spacing:0.15em;margin-bottom:6px;}
+.login-input{
+  width:100%;background:#111;border:1px solid #222;color:#fff;
+  font-family:var(--mono);font-size:13px;padding:12px 14px;outline:none;
+  margin-bottom:20px;
+  transition:border-color 0.2s;
+}
+.login-input:focus{border-color:#fff;}
+.login-btn{
+  width:100%;background:#fff;border:none;color:#000;
+  font-family:var(--hud);font-size:10px;font-weight:700;
+  letter-spacing:0.15em;padding:13px;cursor:pointer;
+  transition:background 0.2s;
+}
+.login-btn:hover{background:#ddd;}
+.login-err{font-size:10px;color:var(--red);text-align:center;margin-top:12px;min-height:16px;font-family:var(--mono);}
+.service-key-note{font-size:9px;color:#333;font-family:var(--mono);text-align:center;margin-top:20px;line-height:1.7;}
+.service-key-note a{color:#555;text-decoration:underline;}
+
+/* ── APP ── */
+#app{display:none;}
+
+/* ── TOP BAR ── */
+#topbar{
+  background:#080808;border-bottom:1px solid var(--border);
+  padding:14px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.bar-logo{font-size:14px;font-weight:900;letter-spacing:0.25em;}
+.bar-tag{font-size:8px;color:#444;letter-spacing:0.2em;margin-left:10px;font-family:var(--mono);}
+.bar-right{display:flex;align-items:center;gap:16px;}
+.bar-time{font-size:9px;color:#555;font-family:var(--mono);letter-spacing:0.1em;}
+.bar-status{display:flex;align-items:center;gap:6px;font-size:9px;color:#33ff99;font-family:var(--mono);}
+.live-dot{width:6px;height:6px;background:#33ff99;border-radius:50%;animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.logout-btn{
+  background:transparent;border:1px solid #222;color:#555;
+  font-family:var(--hud);font-size:8px;letter-spacing:0.1em;
+  padding:6px 14px;cursor:pointer;transition:all 0.2s;
+}
+.logout-btn:hover{border-color:#fff;color:#fff;}
+
+/* ── LAYOUT ── */
+#main{display:grid;grid-template-columns:200px 1fr;min-height:calc(100vh - 49px);}
+
+/* ── SIDEBAR ── */
+#sidebar{
+  background:#080808;border-right:1px solid var(--border);
+  padding:24px 0;
+}
+.sidebar-section{
+  font-size:7px;letter-spacing:0.25em;color:#333;
+  font-family:var(--mono);padding:0 20px;margin-bottom:8px;margin-top:20px;
+}
+.sidebar-section:first-child{margin-top:0;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 20px;cursor:pointer;
+  font-size:9px;letter-spacing:0.15em;color:#444;
+  transition:color 0.2s,background 0.2s;
+  border-left:2px solid transparent;
+}
+.nav-item:hover{color:#fff;background:rgba(255,255,255,0.03);}
+.nav-item.active{color:#fff;border-left-color:#fff;background:rgba(255,255,255,0.05);}
+.nav-icon{font-size:13px;width:16px;text-align:center;}
+
+/* ── CONTENT ── */
+#content{padding:32px;overflow-y:auto;}
+
+.page{display:none;}
+.page.active{display:block;}
+
+/* ── STAT CARDS ── */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);margin-bottom:32px;}
+.stat-card{
+  background:var(--panel);padding:20px 24px;
+  position:relative;overflow:hidden;
+}
+.stat-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent);
+}
+.stat-label{font-size:7px;letter-spacing:0.25em;color:#444;font-family:var(--mono);margin-bottom:8px;}
+.stat-val{font-size:28px;font-weight:900;color:#fff;line-height:1;}
+.stat-sub{font-size:9px;color:#333;font-family:var(--mono);margin-top:4px;}
+.stat-trend{font-size:9px;font-family:var(--mono);margin-top:6px;}
+.trend-up{color:var(--green);}
+.trend-down{color:var(--red);}
+
+/* ── SECTION HEADER ── */
+.section-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:16px;
+}
+.section-title{font-size:10px;letter-spacing:0.2em;color:#fff;}
+.section-sub{font-size:9px;color:#444;font-family:var(--mono);}
+
+/* ── TABLE ── */
+.tbl-wrap{background:var(--panel);border:1px solid var(--border);overflow:hidden;margin-bottom:32px;}
+table{width:100%;border-collapse:collapse;}
+thead tr{border-bottom:1px solid var(--border);background:#0d0d0d;}
+th{
+  font-size:7px;letter-spacing:0.2em;color:#444;
+  padding:12px 16px;text-align:left;font-weight:400;
+}
+td{
+  font-size:10px;color:#888;padding:12px 16px;
+  border-bottom:1px solid #111;font-family:var(--mono);
+  vertical-align:middle;
+}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,0.02);color:#ccc;}
+.td-name{color:#fff;font-family:var(--hud);font-size:9px;letter-spacing:0.1em;}
+.td-badge{
+  display:inline-block;padding:2px 8px;
+  font-size:7px;letter-spacing:0.15em;border-radius:2px;
+  font-family:var(--hud);
+}
+.badge-white{background:#222;color:#fff;border:1px solid #333;}
+.badge-yellow{background:rgba(255,215,0,0.1);color:#ffd700;border:1px solid rgba(255,215,0,0.2);}
+.badge-red{background:rgba(255,51,51,0.1);color:#ff6666;border:1px solid rgba(255,51,51,0.2);}
+.badge-green{background:rgba(51,255,153,0.1);color:#33ff99;border:1px solid rgba(51,255,153,0.2);}
+.badge-grey{background:#111;color:#444;border:1px solid #1a1a1a;}
+
+.action-btn{
+  background:transparent;border:1px solid #1a1a1a;color:#444;
+  font-family:var(--hud);font-size:7px;letter-spacing:0.1em;
+  padding:4px 10px;cursor:pointer;transition:all 0.15s;
+}
+.action-btn:hover{border-color:#fff;color:#fff;}
+.action-btn.danger:hover{border-color:var(--red);color:var(--red);}
+
+/* ── SEARCH / FILTER BAR ── */
+.filter-bar{
+  display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap;
+}
+.search-input{
+  background:#0d0d0d;border:1px solid #1a1a1a;color:#fff;
+  font-family:var(--mono);font-size:11px;padding:8px 14px;
+  outline:none;flex:1;min-width:200px;
+  transition:border-color 0.2s;
+}
+.search-input:focus{border-color:#fff;}
+.filter-select{
+  background:#0d0d0d;border:1px solid #1a1a1a;color:#888;
+  font-family:var(--mono);font-size:10px;padding:8px 12px;
+  outline:none;cursor:pointer;
+}
+.refresh-btn{
+  background:transparent;border:1px solid #1a1a1a;color:#555;
+  font-family:var(--hud);font-size:8px;letter-spacing:0.1em;
+  padding:8px 16px;cursor:pointer;transition:all 0.2s;
+}
+.refresh-btn:hover{border-color:#fff;color:#fff;}
+
+/* ── INVITE CODES ── */
+.invite-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:1px;background:var(--border);margin-bottom:32px;
+}
+.invite-card{
+  background:var(--panel);padding:20px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.invite-code{
+  font-family:var(--mono);font-size:16px;color:#fff;
+  letter-spacing:0.2em;
+}
+.invite-meta{font-size:9px;color:#444;font-family:var(--mono);}
+.invite-status{font-size:8px;}
+.copy-btn{
+  background:transparent;border:1px solid #1a1a1a;color:#444;
+  font-family:var(--mono);font-size:9px;padding:5px 10px;
+  cursor:pointer;transition:all 0.15s;align-self:flex-start;
+  margin-top:4px;
+}
+.copy-btn:hover{border-color:#fff;color:#fff;}
+
+/* ── GENERATE INVITE ── */
+.gen-box{
+  background:var(--panel);border:1px solid var(--border);
+  padding:24px;margin-bottom:32px;
+  display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;
+}
+.gen-field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px;}
+.gen-label{font-size:7px;letter-spacing:0.2em;color:#444;font-family:var(--mono);}
+.gen-input{
+  background:#0d0d0d;border:1px solid #1a1a1a;color:#fff;
+  font-family:var(--mono);font-size:12px;padding:9px 12px;outline:none;
+  transition:border-color 0.2s;
+}
+.gen-input:focus{border-color:#fff;}
+.gen-btn{
+  background:#fff;border:none;color:#000;
+  font-family:var(--hud);font-size:9px;font-weight:700;
+  letter-spacing:0.1em;padding:10px 24px;cursor:pointer;
+  transition:background 0.2s;white-space:nowrap;
+}
+.gen-btn:hover{background:#ddd;}
+
+/* ── MODAL ── */
+#modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);
+  z-index:9000;align-items:center;justify-content:center;
+}
+#modal-overlay.show{display:flex;}
+.modal{
+  background:#0f0f0f;border:1px solid #2a2a2a;
+  padding:32px;width:100%;max-width:480px;
+}
+.modal-title{font-size:11px;letter-spacing:0.2em;margin-bottom:16px;}
+.modal-body{font-family:var(--mono);font-size:12px;color:#888;line-height:1.7;margin-bottom:24px;}
+.modal-btns{display:flex;gap:12px;justify-content:flex-end;}
+.modal-cancel{
+  background:transparent;border:1px solid #333;color:#555;
+  font-family:var(--hud);font-size:8px;letter-spacing:0.1em;
+  padding:8px 20px;cursor:pointer;transition:all 0.15s;
+}
+.modal-cancel:hover{color:#fff;border-color:#fff;}
+.modal-confirm{
+  background:var(--red);border:none;color:#fff;
+  font-family:var(--hud);font-size:8px;font-weight:700;
+  letter-spacing:0.1em;padding:8px 20px;cursor:pointer;
+  transition:background 0.15s;
+}
+.modal-confirm:hover{background:#cc0000;}
+
+/* ── EMPTY ── */
+.empty-state{
+  padding:60px 24px;text-align:center;
+  font-size:11px;color:#333;font-family:var(--mono);
+}
+
+/* ── LOADING ── */
+.loading{
+  padding:40px;text-align:center;
+  font-size:9px;color:#333;letter-spacing:0.2em;
+  font-family:var(--mono);
+}
+.spinner{
+  display:inline-block;width:16px;height:16px;
+  border:2px solid #222;border-top-color:#fff;
+  border-radius:50%;animation:spin 0.8s linear infinite;
+  margin-right:10px;vertical-align:middle;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── USER DETAIL PANEL ── */
+#user-detail{
+  display:none;position:fixed;top:0;right:0;bottom:0;width:420px;
+  background:#0a0a0a;border-left:1px solid #1a1a1a;
+  z-index:500;overflow-y:auto;padding:24px;
+  animation:slideIn 0.2s ease;
+}
+@keyframes slideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
+.detail-close{
+  background:transparent;border:none;color:#444;
+  font-size:18px;cursor:pointer;float:right;
+  transition:color 0.2s;padding:0;
+}
+.detail-close:hover{color:#fff;}
+.detail-name{font-size:16px;font-weight:900;letter-spacing:0.15em;margin:16px 0 4px;}
+.detail-email{font-size:10px;color:#555;font-family:var(--mono);margin-bottom:20px;}
+.detail-section{
+  font-size:7px;letter-spacing:0.25em;color:#333;
+  font-family:var(--mono);margin:20px 0 8px;
+  padding-bottom:6px;border-bottom:1px solid #111;
+}
+.detail-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:6px 0;border-bottom:1px solid #0f0f0f;
+}
+.detail-key{font-size:9px;color:#444;font-family:var(--mono);}
+.detail-val{font-size:9px;color:#fff;font-family:var(--mono);}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;bottom:24px;right:24px;
+  background:#111;border:1px solid #2a2a2a;
+  color:#fff;font-family:var(--mono);font-size:11px;
+  padding:12px 20px;z-index:9999;
+  opacity:0;transform:translateY(8px);
+  transition:all 0.25s ease;pointer-events:none;
+}
+#toast.show{opacity:1;transform:translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">FORGE</div>
+    <div class="login-sub">ADMIN DASHBOARD</div>
+
+    <div class="login-label">ADMIN PASSWORD</div>
+    <input type="password" id="admin-pw" class="login-input" placeholder="••••••••"
+      onkeydown="if(event.key==='Enter')doAdminLogin()"/>
+
+    <div class="login-label">SUPABASE SERVICE ROLE KEY</div>
+    <input type="password" id="service-key" class="login-input" placeholder="eyJhbGci..."
+      onkeydown="if(event.key==='Enter')doAdminLogin()"/>
+
+    <button class="login-btn" onclick="doAdminLogin()">ACCESS DASHBOARD →</button>
+    <div class="login-err" id="login-err"></div>
+
+    <div class="service-key-note">
+      Service role key found in Supabase →<br>
+      Project Settings → API → service_role key
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <div>
+      <span class="bar-logo">FORGE</span>
+      <span class="bar-tag">ADMIN v1.0</span>
+    </div>
+    <div class="bar-right">
+      <div class="bar-status"><span class="live-dot"></span>CONNECTED</div>
+      <div class="bar-time" id="admin-clock">--:--:--</div>
+      <button class="logout-btn" onclick="doLogout()">LOGOUT</button>
+    </div>
+  </div>
+
+  <div id="main">
+
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+      <div class="sidebar-section">OVERVIEW</div>
+      <div class="nav-item active" onclick="showAdminPage('overview')" id="nav-overview">
+        <span class="nav-icon">📊</span>OVERVIEW
+      </div>
+
+      <div class="sidebar-section">USERS</div>
+      <div class="nav-item" onclick="showAdminPage('users')" id="nav-users">
+        <span class="nav-icon">👤</span>ALL USERS
+      </div>
+      <div class="nav-item" onclick="showAdminPage('stats')" id="nav-stats">
+        <span class="nav-icon">⚡</span>USER STATS
+      </div>
+
+      <div class="sidebar-section">ACCESS</div>
+      <div class="nav-item" onclick="showAdminPage('invites')" id="nav-invites">
+        <span class="nav-icon">🔑</span>INVITE CODES
+      </div>
+
+      <div class="sidebar-section">SYSTEM</div>
+      <div class="nav-item" onclick="showAdminPage('logs')" id="nav-logs">
+        <span class="nav-icon">📋</span>ACTIVITY LOG
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div id="content">
+
+      <!-- OVERVIEW PAGE -->
+      <div class="page active" id="page-overview">
+        <div class="section-hdr">
+          <div>
+            <div class="section-title">OVERVIEW</div>
+            <div class="section-sub">Platform health at a glance</div>
+          </div>
+          <button class="refresh-btn" onclick="loadOverview()">↺ REFRESH</button>
+        </div>
+
+        <div class="stat-row" id="overview-stats">
+          <div class="stat-card">
+            <div class="stat-label">TOTAL USERS</div>
+            <div class="stat-val" id="ov-users">—</div>
+            <div class="stat-sub">registered accounts</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">ACTIVE TODAY</div>
+            <div class="stat-val" id="ov-active">—</div>
+            <div class="stat-sub">sessions in last 24h</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">INVITE CODES</div>
+            <div class="stat-val" id="ov-invites">—</div>
+            <div class="stat-sub">unused remaining</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">AVG STREAK</div>
+            <div class="stat-val" id="ov-streak">—</div>
+            <div class="stat-sub">days across all users</div>
+          </div>
+        </div>
+
+        <div class="section-hdr"><div class="section-title">RECENT SIGNUPS</div></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>USER</th><th>EMAIL</th><th>JOINED</th><th>LEVEL</th><th>STREAK</th>
+            </tr></thead>
+            <tbody id="recent-signups-body">
+              <tr><td colspan="5" class="loading"><span class="spinner"></span>LOADING...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- USERS PAGE -->
+      <div class="page" id="page-users">
+        <div class="section-hdr">
+          <div>
+            <div class="section-title">ALL USERS</div>
+            <div class="section-sub" id="users-count">Loading...</div>
+          </div>
+          <button class="refresh-btn" onclick="loadUsers()">↺ REFRESH</button>
+        </div>
+
+        <div class="filter-bar">
+          <input type="text" class="search-input" placeholder="Search by email or name..."
+            id="user-search" oninput="filterUsers()"/>
+          <select class="filter-select" id="user-sort" onchange="filterUsers()">
+            <option value="joined_desc">NEWEST FIRST</option>
+            <option value="joined_asc">OLDEST FIRST</option>
+            <option value="level_desc">HIGHEST LEVEL</option>
+            <option value="streak_desc">LONGEST STREAK</option>
+          </select>
+        </div>
+
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>NAME</th><th>EMAIL</th><th>JOINED</th><th>LAST ACTIVE</th>
+              <th>LEVEL</th><th>XP</th><th>STREAK</th><th>BELT</th><th>ACTIONS</th>
+            </tr></thead>
+            <tbody id="users-body">
+              <tr><td colspan="9" class="loading"><span class="spinner"></span>LOADING...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- USER STATS PAGE -->
+      <div class="page" id="page-stats">
+        <div class="section-hdr">
+          <div>
+            <div class="section-title">USER STATS</div>
+            <div class="section-sub">XP, levels and streaks across all users</div>
+          </div>
+          <button class="refresh-btn" onclick="loadStats()">↺ REFRESH</button>
+        </div>
+
+        <div class="stat-row" id="stats-summary">
+          <div class="stat-card">
+            <div class="stat-label">HIGHEST LEVEL</div>
+            <div class="stat-val" id="st-maxlvl">—</div>
+            <div class="stat-sub" id="st-maxlvl-user">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">TOTAL XP EARNED</div>
+            <div class="stat-val" id="st-totalxp">—</div>
+            <div class="stat-sub">across all users</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">LONGEST STREAK</div>
+            <div class="stat-val" id="st-maxstreak">—</div>
+            <div class="stat-sub" id="st-maxstreak-user">days</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">BELTS EARNED</div>
+            <div class="stat-val" id="st-belts">—</div>
+            <div class="stat-sub">white + yellow + red</div>
+          </div>
+        </div>
+
+        <div class="section-hdr"><div class="section-title">LEADERBOARD — XP</div></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th><th>NAME</th><th>EMAIL</th><th>LEVEL</th><th>TOTAL XP</th><th>STREAK</th><th>BELT</th>
+            </tr></thead>
+            <tbody id="leaderboard-body">
+              <tr><td colspan="7" class="loading"><span class="spinner"></span>LOADING...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- INVITE CODES PAGE -->
+      <div class="page" id="page-invites">
+        <div class="section-hdr">
+          <div>
+            <div class="section-title">INVITE CODES</div>
+            <div class="section-sub">Generate and manage access codes</div>
+          </div>
+          <button class="refresh-btn" onclick="loadInvites()">↺ REFRESH</button>
+        </div>
+
+        <div class="gen-box">
+          <div class="gen-field">
+            <div class="gen-label">NOTE (optional)</div>
+            <input type="text" class="gen-input" id="invite-note" placeholder="e.g. friend, beta tester..."/>
+          </div>
+          <div class="gen-field" style="max-width:120px;">
+            <div class="gen-label">QUANTITY</div>
+            <input type="number" class="gen-input" id="invite-qty" value="1" min="1" max="50"/>
+          </div>
+          <button class="gen-btn" onclick="generateInvites()">+ GENERATE</button>
+        </div>
+
+        <div class="section-hdr">
+          <div class="section-title">ACTIVE CODES</div>
+          <div style="display:flex;gap:8px;">
+            <span class="section-sub" id="invites-count">—</span>
+          </div>
+        </div>
+        <div id="invites-grid" class="invite-grid">
+          <div class="loading"><span class="spinner"></span>LOADING...</div>
+        </div>
+
+        <div class="section-hdr"><div class="section-title">USED CODES</div></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>CODE</th><th>USED BY</th><th>USED AT</th><th>NOTE</th>
+            </tr></thead>
+            <tbody id="used-invites-body">
+              <tr><td colspan="4" class="loading"><span class="spinner"></span>LOADING...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- LOGS PAGE -->
+      <div class="page" id="page-logs">
+        <div class="section-hdr">
+          <div>
+            <div class="section-title">ACTIVITY LOG</div>
+            <div class="section-sub">Recent platform events</div>
+          </div>
+          <button class="refresh-btn" onclick="loadLogs()">↺ REFRESH</button>
+        </div>
+
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>TIME</th><th>USER</th><th>EVENT</th><th>DETAILS</th>
+            </tr></thead>
+            <tbody id="logs-body">
+              <tr><td colspan="4" class="loading"><span class="spinner"></span>LOADING...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- USER DETAIL PANEL -->
+<div id="user-detail">
+  <button class="detail-close" onclick="closeUserDetail()">✕</button>
+  <div style="clear:both;"></div>
+  <div class="detail-name" id="detail-name">—</div>
+  <div class="detail-email" id="detail-email">—</div>
+
+  <div class="detail-section">ACCOUNT</div>
+  <div class="detail-row"><span class="detail-key">USER ID</span><span class="detail-val" id="detail-id">—</span></div>
+  <div class="detail-row"><span class="detail-key">JOINED</span><span class="detail-val" id="detail-joined">—</span></div>
+  <div class="detail-row"><span class="detail-key">LAST ACTIVE</span><span class="detail-val" id="detail-active">—</span></div>
+
+  <div class="detail-section">PROGRESS</div>
+  <div class="detail-row"><span class="detail-key">LEVEL</span><span class="detail-val" id="detail-level">—</span></div>
+  <div class="detail-row"><span class="detail-key">TOTAL XP</span><span class="detail-val" id="detail-xp">—</span></div>
+  <div class="detail-row"><span class="detail-key">STREAK</span><span class="detail-val" id="detail-streak">—</span></div>
+  <div class="detail-row"><span class="detail-key">BEST STREAK</span><span class="detail-val" id="detail-best">—</span></div>
+
+  <div class="detail-section">GOALS</div>
+  <div class="detail-row"><span class="detail-key">DAILY GOALS</span><span class="detail-val" id="detail-goals">—</span></div>
+  <div class="detail-row"><span class="detail-key">NON-NEGS</span><span class="detail-val" id="detail-nonneg">—</span></div>
+  <div class="detail-row"><span class="detail-key">LONG-TERM</span><span class="detail-val" id="detail-longterm">—</span></div>
+
+  <div class="detail-section">COACHING</div>
+  <div class="detail-row"><span class="detail-key">STYLE</span><span class="detail-val" id="detail-style">—</span></div>
+  <div class="detail-row"><span class="detail-key">ONBOARDED</span><span class="detail-val" id="detail-onboarded">—</span></div>
+
+  <div style="margin-top:24px;display:flex;flex-direction:column;gap:8px;">
+    <button class="action-btn danger" style="width:100%;padding:10px;" onclick="confirmBanUser()">BAN USER</button>
+    <button class="action-btn danger" style="width:100%;padding:10px;" onclick="confirmDeleteUser()">DELETE USER DATA</button>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">CONFIRM ACTION</div>
+    <div class="modal-body" id="modal-body">Are you sure?</div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal()">CANCEL</button>
+      <button class="modal-confirm" id="modal-confirm-btn" onclick="">CONFIRM</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://qkcnyoiaujhxbnszrbmw.supabase.co';
+const ADMIN_PASSWORD = 'forge-admin-2026'; // Change this to your preferred password
+let SERVICE_KEY = '';
+let allUsers = [];
+let allInvites = [];
+let currentDetailUser = null;
+
+// ── AUTH ──
+function doAdminLogin(){
+  const pw = document.getElementById('admin-pw').value;
+  const sk = document.getElementById('service-key').value.trim();
+  const err = document.getElementById('login-err');
+
+  if(pw !== ADMIN_PASSWORD){
+    err.textContent = 'Incorrect password.';
+    return;
+  }
+  if(!sk.startsWith('eyJ')){
+    err.textContent = 'Invalid service role key.';
+    return;
+  }
+
+  SERVICE_KEY = sk;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  startAdminApp();
+}
+
+function doLogout(){
+  SERVICE_KEY = '';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('admin-pw').value = '';
+  document.getElementById('service-key').value = '';
+}
+
+// ── INIT ──
+function startAdminApp(){
+  updateAdminClock();
+  setInterval(updateAdminClock, 1000);
+  loadOverview();
+  loadUsers();
+  loadInvites();
+  loadStats();
+  loadLogs();
+}
+
+function updateAdminClock(){
+  const now = new Date();
+  document.getElementById('admin-clock').textContent =
+    String(now.getHours()).padStart(2,'0') + ':' +
+    String(now.getMinutes()).padStart(2,'0') + ':' +
+    String(now.getSeconds()).padStart(2,'0');
+}
+
+// ── NAVIGATION ──
+function showAdminPage(name){
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+  closeUserDetail();
+}
+
+// ── API HELPERS ──
+async function supabaseRequest(path, options={}){
+  const res = await fetch(SUPABASE_URL + path, {
+    headers: {
+      'apikey': SERVICE_KEY,
+      'Authorization': 'Bearer ' + SERVICE_KEY,
+      'Content-Type': 'application/json',
+      ...options.headers
+    },
+    ...options
+  });
+  if(!res.ok){
+    const err = await res.text();
+    throw new Error(err);
+  }
+  return res.json();
+}
+
+// ── XP / LEVEL HELPERS ──
+function xpForLevel(n){ return n*(n+1)/2*100; }
+function getLvl(xp){
+  let lvl=0;
+  while(xpForLevel(lvl+1)<=xp) lvl++;
+  return lvl;
+}
+
+// ── LOAD ALL USERS ──
+async function loadAllUserData(){
+  // Get auth users via admin API
+  const authData = await supabaseRequest('/auth/v1/admin/users?page=1&per_page=1000');
+  const authUsers = authData.users || [];
+
+  // Get lifeos data
+  const lifeosData = await supabaseRequest('/rest/v1/lifeos?select=*');
+
+  // Merge
+  return authUsers.map(u => {
+    const lifeos = lifeosData.find(l => l.user_id === u.id);
+    const data = lifeos?.data || {};
+    const lvl = getLvl(data.xp || 0);
+    const streak = data.streakData?.current || 0;
+    const bestStreak = data.streakData?.best || 0;
+    const name = data.profile?.name || '—';
+    const coachStyle = data.profile?.coachingStyle || '—';
+    const goals = (data.goals || []).filter(g => g.label).length;
+    const nonneg = (data.nonneg || []).filter(g => g.label).length;
+    const longterm = (data.longterm || []).filter(g => g.label).length;
+    return {
+      id: u.id,
+      email: u.email,
+      name,
+      joined: u.created_at,
+      lastActive: lifeos?.updated_at || u.last_sign_in_at,
+      xp: data.xp || 0,
+      level: lvl,
+      streak,
+      bestStreak,
+      coachStyle,
+      onboarded: data.onboarded || false,
+      goals,
+      nonneg,
+      longterm,
+      raw: data
+    };
+  });
+}
+
+// ── OVERVIEW ──
+async function loadOverview(){
+  try {
+    allUsers = await loadAllUserData();
+
+    document.getElementById('ov-users').textContent = allUsers.length;
+
+    const now = new Date();
+    const yesterday = new Date(now - 24*60*60*1000);
+    const activeToday = allUsers.filter(u => u.lastActive && new Date(u.lastActive) > yesterday).length;
+    document.getElementById('ov-active').textContent = activeToday;
+
+    const avgStreak = allUsers.length
+      ? Math.round(allUsers.reduce((s,u) => s + u.streak, 0) / allUsers.length)
+      : 0;
+    document.getElementById('ov-streak').textContent = avgStreak;
+
+    // Load invite count
+    try {
+      const inv = await supabaseRequest('/rest/v1/invite_codes?select=*&used=eq.false');
+      document.getElementById('ov-invites').textContent = inv.length;
+    } catch(e){
+      document.getElementById('ov-invites').textContent = '—';
+    }
+
+    // Recent signups table
+    const recent = [...allUsers].sort((a,b) => new Date(b.joined) - new Date(a.joined)).slice(0, 10);
+    const tbody = document.getElementById('recent-signups-body');
+    if(!recent.length){
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No users yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = recent.map(u => `
+      <tr>
+        <td class="td-name">${esc(u.name)}</td>
+        <td>${esc(u.email)}</td>
+        <td>${fmtDate(u.joined)}</td>
+        <td>${u.level}</td>
+        <td>${u.streak} days</td>
+      </tr>
+    `).join('');
+
+  } catch(e){
+    toast('Error loading overview: ' + e.message, true);
+  }
+}
+
+// ── USERS ──
+async function loadUsers(){
+  try {
+    if(!allUsers.length) allUsers = await loadAllUserData();
+    renderUsersTable(allUsers);
+  } catch(e){
+    document.getElementById('users-body').innerHTML =
+      `<tr><td colspan="9" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderUsersTable(users){
+  document.getElementById('users-count').textContent = users.length + ' users';
+  const tbody = document.getElementById('users-body');
+  if(!users.length){
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No users found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td class="td-name" style="cursor:pointer;" onclick="openUserDetail('${u.id}')">${esc(u.name)}</td>
+      <td>${esc(u.email)}</td>
+      <td>${fmtDate(u.joined)}</td>
+      <td>${fmtDate(u.lastActive)}</td>
+      <td>${u.level}</td>
+      <td>${u.xp.toLocaleString()}</td>
+      <td>${u.streak}d</td>
+      <td>${beltBadge(u.level)}</td>
+      <td style="display:flex;gap:6px;">
+        <button class="action-btn" onclick="openUserDetail('${u.id}')">VIEW</button>
+        <button class="action-btn danger" onclick="confirmDeleteUserById('${u.id}','${esc(u.email)}')">DELETE</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterUsers(){
+  const q = document.getElementById('user-search').value.toLowerCase();
+  const sort = document.getElementById('user-sort').value;
+  let filtered = allUsers.filter(u =>
+    u.email.toLowerCase().includes(q) ||
+    u.name.toLowerCase().includes(q)
+  );
+  if(sort === 'joined_desc') filtered.sort((a,b) => new Date(b.joined) - new Date(a.joined));
+  if(sort === 'joined_asc') filtered.sort((a,b) => new Date(a.joined) - new Date(b.joined));
+  if(sort === 'level_desc') filtered.sort((a,b) => b.level - a.level);
+  if(sort === 'streak_desc') filtered.sort((a,b) => b.streak - a.streak);
+  renderUsersTable(filtered);
+}
+
+// ── STATS ──
+async function loadStats(){
+  try {
+    if(!allUsers.length) allUsers = await loadAllUserData();
+
+    const sorted = [...allUsers].sort((a,b) => b.xp - a.xp);
+    const maxLvl = sorted[0];
+    const maxStreak = [...allUsers].sort((a,b) => b.streak - a.streak)[0];
+    const totalXP = allUsers.reduce((s,u) => s + u.xp, 0);
+
+    if(maxLvl){
+      document.getElementById('st-maxlvl').textContent = maxLvl.level;
+      document.getElementById('st-maxlvl-user').textContent = maxLvl.name;
+    }
+    document.getElementById('st-totalxp').textContent = totalXP.toLocaleString();
+    if(maxStreak){
+      document.getElementById('st-maxstreak').textContent = maxStreak.streak;
+      document.getElementById('st-maxstreak-user').textContent = maxStreak.name + ' · ' + maxStreak.streak + ' days';
+    }
+
+    // Rough belt count based on level
+    const belts = allUsers.filter(u => u.level >= 3).length;
+    document.getElementById('st-belts').textContent = belts;
+
+    const tbody = document.getElementById('leaderboard-body');
+    tbody.innerHTML = sorted.map((u, i) => `
+      <tr>
+        <td style="color:${i===0?'#ffd700':i===1?'#aaa':i===2?'#cd7f32':'#444'};font-weight:700;">${i+1}</td>
+        <td class="td-name">${esc(u.name)}</td>
+        <td>${esc(u.email)}</td>
+        <td>${u.level}</td>
+        <td>${u.xp.toLocaleString()}</td>
+        <td>${u.streak}d</td>
+        <td>${beltBadge(u.level)}</td>
+      </tr>
+    `).join('');
+  } catch(e){
+    toast('Error loading stats: ' + e.message, true);
+  }
+}
+
+// ── INVITE CODES ──
+async function loadInvites(){
+  try {
+    // Try to load from invite_codes table
+    const data = await supabaseRequest('/rest/v1/invite_codes?select=*&order=created_at.desc');
+    allInvites = data;
+
+    const unused = data.filter(i => !i.used);
+    const used = data.filter(i => i.used);
+
+    document.getElementById('invites-count').textContent = unused.length + ' active';
+
+    // Render unused
+    const grid = document.getElementById('invites-grid');
+    if(!unused.length){
+      grid.innerHTML = '<div class="empty-state">No active invite codes. Generate some above.</div>';
+    } else {
+      grid.innerHTML = unused.map(inv => `
+        <div class="invite-card">
+          <div class="invite-code">${esc(inv.code)}</div>
+          <div class="invite-meta">Created: ${fmtDate(inv.created_at)}</div>
+          <div class="invite-meta">Note: ${esc(inv.note||'—')}</div>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <button class="copy-btn" onclick="copyCode('${esc(inv.code)}')">COPY</button>
+            <button class="copy-btn" style="color:var(--red);" onclick="revokeInvite('${inv.id}')">REVOKE</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Render used
+    const usedBody = document.getElementById('used-invites-body');
+    if(!used.length){
+      usedBody.innerHTML = '<tr><td colspan="4" class="empty-state">No used codes yet</td></tr>';
+    } else {
+      usedBody.innerHTML = used.map(inv => `
+        <tr>
+          <td class="td-name">${esc(inv.code)}</td>
+          <td>${esc(inv.used_by||'—')}</td>
+          <td>${fmtDate(inv.used_at)}</td>
+          <td>${esc(inv.note||'—')}</td>
+        </tr>
+      `).join('');
+    }
+  } catch(e){
+    // invite_codes table may not exist yet
+    document.getElementById('invites-grid').innerHTML =
+      `<div class="empty-state">invite_codes table not set up yet.<br><br>
+      Run this SQL in Supabase:<br><br>
+      <span style="color:#fff;font-size:10px;">
+      create table invite_codes (<br>
+      &nbsp;id uuid primary key default gen_random_uuid(),<br>
+      &nbsp;code text unique not null,<br>
+      &nbsp;note text,<br>
+      &nbsp;used boolean default false,<br>
+      &nbsp;used_by text,<br>
+      &nbsp;used_at timestamptz,<br>
+      &nbsp;created_at timestamptz default now()<br>
+      );
+      </span></div>`;
+  }
+}
+
+async function generateInvites(){
+  const note = document.getElementById('invite-note').value.trim();
+  const qty = parseInt(document.getElementById('invite-qty').value) || 1;
+
+  const codes = [];
+  for(let i=0; i<qty; i++){
+    codes.push({
+      code: generateCode(),
+      note: note || null,
+      used: false
+    });
+  }
+
+  try {
+    await supabaseRequest('/rest/v1/invite_codes', {
+      method: 'POST',
+      headers: {'Prefer': 'return=representation'},
+      body: JSON.stringify(codes)
+    });
+    toast(`Generated ${qty} invite code${qty>1?'s':''}!`);
+    document.getElementById('invite-note').value = '';
+    loadInvites();
+  } catch(e){
+    toast('Error: ' + e.message, true);
+  }
+}
+
+function generateCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'FORGE-';
+  for(let i=0; i<6; i++) code += chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+
+async function revokeInvite(id){
+  showModal('REVOKE INVITE', 'This invite code will be permanently deleted.', async () => {
+    try {
+      await supabaseRequest(`/rest/v1/invite_codes?id=eq.${id}`, {method:'DELETE'});
+      toast('Invite revoked');
+      loadInvites();
+    } catch(e){ toast('Error: '+e.message, true); }
+  });
+}
+
+function copyCode(code){
+  navigator.clipboard.writeText(code).then(() => toast('Copied: ' + code));
+}
+
+// ── LOGS ──
+async function loadLogs(){
+  const tbody = document.getElementById('logs-body');
+  try {
+    if(!allUsers.length) allUsers = await loadAllUserData();
+    // Build synthetic log from user data (join dates, recent activity)
+    const logs = allUsers.map(u => ({
+      time: u.joined,
+      user: u.email,
+      event: 'SIGNUP',
+      details: 'Account created'
+    }));
+
+    // Add recent activity
+    allUsers.filter(u => u.lastActive && u.lastActive !== u.joined).forEach(u => {
+      logs.push({
+        time: u.lastActive,
+        user: u.email,
+        event: 'ACTIVE',
+        details: `Level ${u.level} · ${u.streak} day streak`
+      });
+    });
+
+    logs.sort((a,b) => new Date(b.time) - new Date(a.time));
+    const recent = logs.slice(0, 50);
+
+    if(!recent.length){
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No activity yet</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = recent.map(l => `
+      <tr>
+        <td>${fmtDateTime(l.time)}</td>
+        <td>${esc(l.user)}</td>
+        <td><span class="td-badge ${l.event==='SIGNUP'?'badge-green':'badge-white'}">${l.event}</span></td>
+        <td>${esc(l.details)}</td>
+      </tr>
+    `).join('');
+  } catch(e){
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+// ── USER DETAIL ──
+function openUserDetail(id){
+  const u = allUsers.find(u => u.id === id);
+  if(!u) return;
+  currentDetailUser = u;
+
+  document.getElementById('detail-name').textContent = u.name;
+  document.getElementById('detail-email').textContent = u.email;
+  document.getElementById('detail-id').textContent = u.id.substring(0,16)+'...';
+  document.getElementById('detail-joined').textContent = fmtDate(u.joined);
+  document.getElementById('detail-active').textContent = fmtDate(u.lastActive);
+  document.getElementById('detail-level').textContent = u.level;
+  document.getElementById('detail-xp').textContent = u.xp.toLocaleString() + ' XP';
+  document.getElementById('detail-streak').textContent = u.streak + ' days';
+  document.getElementById('detail-best').textContent = u.bestStreak + ' days';
+  document.getElementById('detail-goals').textContent = u.goals + ' labelled';
+  document.getElementById('detail-nonneg').textContent = u.nonneg + ' labelled';
+  document.getElementById('detail-longterm').textContent = u.longterm + ' labelled';
+  document.getElementById('detail-style').textContent = u.coachStyle;
+  document.getElementById('detail-onboarded').textContent = u.onboarded ? 'YES' : 'NO';
+
+  document.getElementById('user-detail').style.display = 'block';
+}
+
+function closeUserDetail(){
+  document.getElementById('user-detail').style.display = 'none';
+  currentDetailUser = null;
+}
+
+function confirmBanUser(){
+  if(!currentDetailUser) return;
+  showModal(
+    'BAN USER',
+    `Ban ${currentDetailUser.email}? They will not be able to log in.`,
+    async () => {
+      try {
+        await supabaseRequest(`/auth/v1/admin/users/${currentDetailUser.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ban_duration: '876600h'})
+        });
+        toast('User banned');
+        closeUserDetail();
+        allUsers = [];
+        loadUsers();
+      } catch(e){ toast('Error: '+e.message, true); }
+    }
+  );
+}
+
+function confirmDeleteUser(){
+  if(!currentDetailUser) return;
+  confirmDeleteUserById(currentDetailUser.id, currentDetailUser.email);
+}
+
+function confirmDeleteUserById(id, email){
+  showModal(
+    'DELETE USER DATA',
+    `Permanently delete all data for ${email}? This cannot be undone.`,
+    async () => {
+      try {
+        // Delete lifeos data
+        await supabaseRequest(`/rest/v1/lifeos?user_id=eq.${id}`, {method:'DELETE'});
+        // Delete auth user
+        await supabaseRequest(`/auth/v1/admin/users/${id}`, {method:'DELETE'});
+        toast('User deleted');
+        closeUserDetail();
+        allUsers = [];
+        loadOverview();
+        loadUsers();
+      } catch(e){ toast('Error: '+e.message, true); }
+    }
+  );
+}
+
+// ── MODAL ──
+function showModal(title, body, onConfirm){
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').textContent = body;
+  document.getElementById('modal-confirm-btn').onclick = () => {
+    closeModal();
+    onConfirm();
+  };
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('show');
+}
+
+// ── HELPERS ──
+function esc(str){ return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function fmtDate(str){
+  if(!str) return '—';
+  const d = new Date(str);
+  if(isNaN(d)) return '—';
+  return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+}
+
+function fmtDateTime(str){
+  if(!str) return '—';
+  const d = new Date(str);
+  if(isNaN(d)) return '—';
+  return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' ' +
+    String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function beltBadge(level){
+  if(level >= 10) return '<span class="td-badge badge-red">RED</span>';
+  if(level >= 5) return '<span class="td-badge badge-yellow">YELLOW</span>';
+  if(level >= 1) return '<span class="td-badge badge-white">WHITE</span>';
+  return '<span class="td-badge badge-grey">NONE</span>';
+}
+
+let toastTimer;
+function toast(msg, isErr=false){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = isErr ? 'var(--red)' : '#2a2a2a';
+  el.style.color = isErr ? 'var(--red)' : '#fff';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>

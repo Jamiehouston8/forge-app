@@ -1,0 +1,27 @@
+# deps
+node_modules/
+
+# secrets / signing — never commit
+*.keystore
+*.jks
+**/local.properties
+.env
+*.env
+!.env.example
+
+# android build output
+**/build/
+**/.gradle/
+.gradle/
+android/app/release/
+android/capacitor-cordova-android-plugins/
+
+# editor
+**/.idea/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# accidental nested scaffold
+/forge-app/

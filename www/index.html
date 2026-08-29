@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FORGE — Build the Life You Are Capable Of</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+
+:root{
+  --black:#050505;
+  --bg:#0a0a0a;
+  --panel:#0f0f0f;
+  --border:#1a1a1a;
+  --white:#ffffff;
+  --dim:#555;
+  --hud:'Orbitron',monospace;
+  --mono:'Share Tech Mono',monospace;
+}
+
+html{scroll-behavior:smooth;}
+
+body{
+  background:var(--black);
+  color:var(--white);
+  font-family:var(--hud);
+  overflow-x:hidden;
+  cursor:default;
+}
+
+/* ── NOISE TEXTURE ── */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9999;opacity:0.4;
+}
+
+/* ── NAV ── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 48px;
+  border-bottom:1px solid #111;
+  background:rgba(5,5,5,0.92);
+  backdrop-filter:blur(12px);
+}
+.nav-brand{
+  display:flex;flex-direction:column;gap:2px;
+}
+.nav-logo{
+  font-size:18px;font-weight:900;letter-spacing:0.25em;color:#fff;
+}
+.nav-tag{
+  font-size:8px;color:#444;letter-spacing:0.2em;font-family:var(--mono);
+}
+.nav-links{
+  display:flex;gap:32px;align-items:center;
+}
+.nav-links a{
+  font-size:9px;letter-spacing:0.2em;color:#555;text-decoration:none;
+  transition:color 0.2s;
+}
+.nav-links a:hover{color:#fff;}
+.nav-cta{
+  background:transparent;border:1px solid #fff;color:#fff;
+  font-family:var(--hud);font-size:9px;letter-spacing:0.15em;
+  padding:10px 24px;cursor:pointer;
+  transition:background 0.2s,color 0.2s,box-shadow 0.2s;
+  text-decoration:none;display:inline-block;
+}
+.nav-cta:hover{
+  background:#fff;color:#000;
+  box-shadow:0 0 20px rgba(255,255,255,0.3);
+}
+
+/* ── HERO ── */
+#hero{
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  text-align:center;
+  padding:120px 48px 80px;
+  position:relative;
+  overflow:hidden;
+}
+
+/* Grid lines background */
+#hero::before{
+  content:'';
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size:80px 80px;
+  mask-image:radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+}
+
+/* Glow orb */
+#hero::after{
+  content:'';
+  position:absolute;
+  width:600px;height:600px;
+  background:radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%);
+  top:50%;left:50%;transform:translate(-50%,-60%);
+  pointer-events:none;
+}
+
+.hero-eyebrow{
+  font-size:9px;letter-spacing:0.4em;color:#444;
+  font-family:var(--mono);
+  margin-bottom:28px;
+  opacity:0;
+  animation:fadeUp 0.8s ease 0.2s forwards;
+}
+
+.hero-title{
+  font-size:clamp(52px, 9vw, 110px);
+  font-weight:900;
+  line-height:0.9;
+  letter-spacing:-0.02em;
+  color:#fff;
+  margin-bottom:12px;
+  opacity:0;
+  animation:fadeUp 0.8s ease 0.4s forwards;
+}
+
+.hero-title span{
+  display:block;
+  color:transparent;
+  -webkit-text-stroke:1px rgba(255,255,255,0.3);
+}
+
+.hero-sub{
+  font-size:11px;letter-spacing:0.15em;color:#555;
+  font-family:var(--mono);
+  margin-bottom:48px;
+  max-width:480px;
+  line-height:1.8;
+  opacity:0;
+  animation:fadeUp 0.8s ease 0.6s forwards;
+}
+
+.hero-btns{
+  display:flex;gap:16px;align-items:center;
+  opacity:0;
+  animation:fadeUp 0.8s ease 0.8s forwards;
+}
+
+.btn-primary{
+  background:#fff;color:#000;border:none;
+  font-family:var(--hud);font-size:10px;font-weight:700;
+  letter-spacing:0.15em;padding:16px 40px;
+  cursor:pointer;transition:all 0.2s;
+  text-decoration:none;display:inline-block;
+}
+.btn-primary:hover{
+  background:#e0e0e0;
+  box-shadow:0 0 30px rgba(255,255,255,0.25);
+  transform:translateY(-1px);
+}
+
+.btn-secondary{
+  background:transparent;color:#555;border:none;
+  font-family:var(--hud);font-size:9px;
+  letter-spacing:0.2em;padding:16px 24px;
+  cursor:pointer;transition:color 0.2s;
+  text-decoration:none;display:inline-block;
+}
+.btn-secondary:hover{color:#fff;}
+
+/* ── SCROLL INDICATOR ── */
+.scroll-hint{
+  position:absolute;bottom:40px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  opacity:0;animation:fadeUp 1s ease 1.2s forwards;
+}
+.scroll-line{
+  width:1px;height:40px;background:linear-gradient(to bottom,#333,transparent);
+  animation:scrollPulse 2s ease-in-out infinite;
+}
+.scroll-label{font-size:7px;letter-spacing:0.3em;color:#333;font-family:var(--mono);}
+
+/* ── STAT TICKER ── */
+.ticker{
+  border-top:1px solid #111;border-bottom:1px solid #111;
+  background:#080808;
+  padding:14px 0;
+  overflow:hidden;
+  white-space:nowrap;
+}
+.ticker-inner{
+  display:inline-flex;gap:0;
+  animation:ticker 30s linear infinite;
+}
+.ticker-item{
+  display:inline-flex;align-items:center;gap:12px;
+  padding:0 40px;
+  font-size:9px;letter-spacing:0.2em;color:#333;
+  font-family:var(--mono);
+  border-right:1px solid #1a1a1a;
+}
+.ticker-item strong{color:#fff;}
+.ticker-dot{width:4px;height:4px;background:#fff;border-radius:50%;opacity:0.3;}
+
+/* ── FEATURES SECTION ── */
+#features{
+  padding:120px 48px;
+  max-width:1200px;margin:0 auto;
+}
+
+.section-label{
+  font-size:8px;letter-spacing:0.4em;color:#444;
+  font-family:var(--mono);margin-bottom:16px;
+}
+.section-title{
+  font-size:clamp(28px,4vw,48px);
+  font-weight:900;line-height:1.1;
+  margin-bottom:80px;
+}
+.section-title em{
+  font-style:normal;
+  color:transparent;-webkit-text-stroke:1px rgba(255,255,255,0.3);
+}
+
+.features-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1px;
+  background:#111;
+  border:1px solid #111;
+}
+
+.feat-card{
+  background:var(--bg);
+  padding:36px 32px;
+  position:relative;
+  overflow:hidden;
+  transition:background 0.3s;
+}
+.feat-card:hover{background:#0d0d0d;}
+.feat-card::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:1px;
+  background:transparent;
+  transition:background 0.3s;
+}
+.feat-card:hover::before{
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent);
+}
+
+.feat-num{
+  font-size:9px;letter-spacing:0.2em;color:#222;
+  font-family:var(--mono);margin-bottom:24px;
+}
+.feat-icon{
+  font-size:28px;margin-bottom:20px;
+  display:block;
+  filter:grayscale(1) brightness(1.5);
+}
+.feat-title{
+  font-size:13px;font-weight:700;letter-spacing:0.15em;
+  margin-bottom:12px;color:#fff;
+}
+.feat-desc{
+  font-size:11px;color:#444;
+  font-family:var(--mono);line-height:1.8;
+}
+
+/* ── BELT SECTION ── */
+#belts{
+  padding:120px 48px;
+  border-top:1px solid #111;
+  border-bottom:1px solid #111;
+  background:#080808;
+  text-align:center;
+}
+
+.belts-intro{
+  max-width:560px;margin:0 auto 80px;
+}
+
+.belts-row{
+  display:flex;
+  justify-content:center;
+  gap:0;
+  max-width:800px;
+  margin:0 auto;
+  border:1px solid #111;
+}
+
+.belt-item{
+  flex:1;
+  padding:40px 24px;
+  border-right:1px solid #111;
+  background:var(--bg);
+  transition:background 0.3s,box-shadow 0.3s;
+  cursor:default;
+}
+.belt-item:last-child{border-right:none;}
+.belt-item:hover{background:#0d0d0d;}
+
+.belt-item:nth-child(1):hover{box-shadow:inset 0 0 30px rgba(255,255,255,0.03),0 0 1px rgba(255,255,255,0.2);}
+.belt-item:nth-child(2):hover{box-shadow:inset 0 0 30px rgba(255,200,0,0.04),0 0 1px rgba(255,200,0,0.3);}
+.belt-item:nth-child(3):hover{box-shadow:inset 0 0 30px rgba(255,50,50,0.04),0 0 1px rgba(255,50,50,0.3);}
+
+.belt-color{
+  width:32px;height:4px;
+  margin:0 auto 20px;
+  border-radius:2px;
+}
+.belt-white{background:#fff;box-shadow:0 0 12px rgba(255,255,255,0.5);}
+.belt-yellow{background:#ffd700;box-shadow:0 0 12px rgba(255,215,0,0.5);}
+.belt-red{background:#ff3333;box-shadow:0 0 12px rgba(255,51,51,0.5);}
+
+.belt-name{
+  font-size:9px;letter-spacing:0.25em;color:#555;
+  margin-bottom:8px;
+}
+.belt-label{
+  font-size:13px;font-weight:700;letter-spacing:0.1em;color:#fff;
+  margin-bottom:8px;
+}
+.belt-desc{
+  font-size:10px;color:#333;font-family:var(--mono);line-height:1.6;
+}
+
+/* ── DASHBOARD PREVIEW ── */
+#preview{
+  padding:120px 48px;
+  max-width:1200px;margin:0 auto;
+}
+
+.preview-window{
+  border:1px solid #1a1a1a;
+  background:#0a0a0a;
+  overflow:hidden;
+  position:relative;
+}
+.preview-bar{
+  background:#0d0d0d;
+  border-bottom:1px solid #1a1a1a;
+  padding:10px 16px;
+  display:flex;align-items:center;gap:8px;
+}
+.preview-dot{width:10px;height:10px;border-radius:50%;background:#1a1a1a;}
+.preview-url{
+  flex:1;text-align:center;
+  font-size:9px;color:#333;font-family:var(--mono);
+  letter-spacing:0.1em;
+}
+.preview-body{
+  padding:24px;
+  display:grid;
+  grid-template-columns:1fr 1.5fr 1.5fr 1.5fr 1fr;
+  gap:1px;
+  background:#111;
+  min-height:200px;
+}
+.preview-cell{
+  background:#0a0a0a;
+  padding:16px;
+}
+.preview-label{
+  font-size:7px;letter-spacing:0.2em;color:#333;
+  margin-bottom:10px;font-family:var(--mono);
+}
+.preview-val{
+  font-size:22px;font-weight:900;color:#fff;
+}
+.preview-sub{font-size:8px;color:#444;font-family:var(--mono);margin-top:4px;}
+.preview-bar-track{
+  height:2px;background:#111;margin-top:12px;overflow:hidden;
+}
+.preview-bar-fill{
+  height:100%;background:#fff;
+  box-shadow:0 0 6px rgba(255,255,255,0.6);
+  animation:fillBar 2s ease 1s forwards;
+  width:0%;
+}
+.preview-check{
+  display:flex;align-items:center;gap:8px;
+  padding:4px 0;border-bottom:1px solid #111;
+}
+.preview-check:last-child{border-bottom:none;}
+.preview-cb{
+  width:12px;height:12px;border:1px solid #222;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:8px;
+}
+.preview-cb.done{background:#fff;border-color:#fff;color:#000;box-shadow:0 0 6px rgba(255,255,255,0.5);}
+.preview-item-label{font-size:9px;color:#555;font-family:var(--mono);}
+.preview-item-label.done{color:#fff;}
+
+/* ── SOCIAL PROOF ── */
+#proof{
+  padding:80px 48px;
+  border-top:1px solid #111;
+  background:#080808;
+  text-align:center;
+}
+
+.proof-row{
+  display:flex;justify-content:center;gap:80px;
+  margin-top:48px;
+  flex-wrap:wrap;
+}
+.proof-stat{text-align:center;}
+.proof-num{
+  font-size:40px;font-weight:900;color:#fff;
+  line-height:1;margin-bottom:6px;
+}
+.proof-label{
+  font-size:8px;letter-spacing:0.25em;color:#444;
+  font-family:var(--mono);
+}
+
+/* ── CTA ── */
+#cta{
+  padding:160px 48px;
+  text-align:center;
+  position:relative;overflow:hidden;
+}
+#cta::before{
+  content:'';
+  position:absolute;
+  width:800px;height:400px;
+  background:radial-gradient(ellipse, rgba(255,255,255,0.03) 0%, transparent 70%);
+  top:50%;left:50%;transform:translate(-50%,-50%);
+}
+.cta-title{
+  font-size:clamp(36px,6vw,72px);
+  font-weight:900;line-height:1;
+  margin-bottom:24px;
+}
+.cta-sub{
+  font-size:11px;color:#444;font-family:var(--mono);
+  letter-spacing:0.15em;margin-bottom:48px;
+}
+
+/* ── FOOTER ── */
+footer{
+  border-top:1px solid #111;
+  padding:24px 48px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.footer-brand{font-size:12px;font-weight:900;letter-spacing:0.25em;}
+.footer-copy{font-size:8px;color:#333;font-family:var(--mono);letter-spacing:0.1em;}
+.footer-links{display:flex;gap:24px;}
+.footer-links a{font-size:8px;color:#333;text-decoration:none;letter-spacing:0.1em;transition:color 0.2s;font-family:var(--mono);}
+.footer-links a:hover{color:#fff;}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(20px);}
+  to{opacity:1;transform:translateY(0);}
+}
+@keyframes ticker{
+  from{transform:translateX(0);}
+  to{transform:translateX(-50%);}
+}
+@keyframes scrollPulse{
+  0%,100%{opacity:0.3;}50%{opacity:1;}
+}
+@keyframes fillBar{
+  to{width:var(--w,60%);}
+}
+
+/* Scroll reveal */
+.reveal{
+  opacity:0;transform:translateY(24px);
+  transition:opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.visible{opacity:1;transform:translateY(0);}
+
+/* ── LIVE INDICATOR ── */
+.live-dot{
+  display:inline-block;width:6px;height:6px;
+  background:#fff;border-radius:50%;margin-right:6px;
+  animation:livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse{
+  0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,255,255,0.4);}
+  50%{opacity:0.6;box-shadow:0 0 0 4px rgba(255,255,255,0);}
+}
+
+/* Mobile */
+@media(max-width:768px){
+  nav{padding:16px 24px;}
+  .nav-links{display:none;}
+  #hero{padding:100px 24px 60px;}
+  .features-grid{grid-template-columns:1fr;}
+  .belts-row{flex-direction:column;}
+  .preview-body{grid-template-columns:1fr 1fr;}
+  .proof-row{gap:40px;}
+  #features,#belts,#preview,#proof,#cta{padding:80px 24px;}
+  footer{flex-direction:column;gap:16px;text-align:center;}
+  .footer-links{justify-content:center;}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">FORGE</div>
+    <div class="nav-tag">v1.0 — BUILD THE LIFE YOU ARE CAPABLE OF</div>
+  </div>
+  <div class="nav-links">
+    <a href="#features">FEATURES</a>
+    <a href="#belts">SYSTEM</a>
+    <a href="#preview">DASHBOARD</a>
+  </div>
+  <a href="forge-onboarding.html" class="nav-cta">ENTER APP →</a>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-eyebrow"><span class="live-dot"></span>CLOUD SYNC · ACTIVE</div>
+  <h1 class="hero-title">
+    FORGE
+    <span>YOUR LIFE.</span>
+  </h1>
+  <p class="hero-sub">
+    A gamified personal OS for people who are serious about building the life they are capable of. Goals. Health. Work. Mind.
+  </p>
+  <div class="hero-btns">
+    <a href="forge-onboarding.html" class="btn-primary">START FORGING →</a>
+    <a href="#features" class="btn-secondary">SEE HOW IT WORKS</a>
+  </div>
+  <div class="scroll-hint">
+    <div class="scroll-line"></div>
+    <div class="scroll-label">SCROLL</div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker">
+  <div class="ticker-inner">
+    <div class="ticker-item"><span class="ticker-dot"></span>GOALS FOR TODAY <strong>5 / 5 COMPLETE</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>STREAK <strong>14 DAYS</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>LEVEL <strong>12 · 1,840 XP</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>NON-NEGOTIABLES <strong>LOCKED IN</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>BELT <strong>YELLOW — EARNED</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>WATER <strong>6 / 8 GLASSES</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>MENTOR <strong>ONLINE</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>FORGE <strong>v1.0 · CLOUD SYNC</strong></div>
+    <!-- duplicate for seamless loop -->
+    <div class="ticker-item"><span class="ticker-dot"></span>GOALS FOR TODAY <strong>5 / 5 COMPLETE</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>STREAK <strong>14 DAYS</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>LEVEL <strong>12 · 1,840 XP</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>NON-NEGOTIABLES <strong>LOCKED IN</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>BELT <strong>YELLOW — EARNED</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>WATER <strong>6 / 8 GLASSES</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>MENTOR <strong>ONLINE</strong></div>
+    <div class="ticker-item"><span class="ticker-dot"></span>FORGE <strong>v1.0 · CLOUD SYNC</strong></div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-label reveal">WHAT FORGE IS</div>
+  <h2 class="section-title reveal">Built for people who<br><em>actually want to change.</em></h2>
+
+  <div class="features-grid reveal">
+    <div class="feat-card">
+      <div class="feat-num">01</div>
+      <span class="feat-icon">🎯</span>
+      <div class="feat-title">GOAL SYSTEM</div>
+      <div class="feat-desc">Daily goals, non-negotiables, and long-term targets. Each earns XP. All tracked. Nothing forgotten.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-num">02</div>
+      <span class="feat-icon">🤖</span>
+      <div class="feat-title">AI MENTOR</div>
+      <div class="feat-desc">A coaching system that knows your profile, tracks your patterns, and calls you out when you're slipping.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-num">03</div>
+      <span class="feat-icon">⚡</span>
+      <div class="feat-title">XP & LEVELLING</div>
+      <div class="feat-desc">Every action has a consequence. Complete goals, earn XP, level up. Fail to show up, lose ground.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-num">04</div>
+      <span class="feat-icon">💪</span>
+      <div class="feat-title">HEALTH TRACKING</div>
+      <div class="feat-desc">Sleep, water, steps, calories, workouts. All in one place. No app-switching.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-num">05</div>
+      <span class="feat-icon">💼</span>
+      <div class="feat-title">WORK & INCOME</div>
+      <div class="feat-desc">Track your projects, tasks and income. Side hustles. Main hustle. It all counts.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-num">06</div>
+      <span class="feat-icon">🔒</span>
+      <div class="feat-title">CLOUD SYNC</div>
+      <div class="feat-desc">Your data saved securely. Pick up where you left off on any device. Always in sync.</div>
+    </div>
+  </div>
+</section>
+
+<!-- BELT SYSTEM -->
+<section id="belts">
+  <div class="belts-intro">
+    <div class="section-label reveal">THE BELT SYSTEM</div>
+    <h2 class="section-title reveal">Earn your rank.<br><em>Prove it daily.</em></h2>
+    <p style="font-size:11px;color:#444;font-family:var(--mono);line-height:1.9;" class="reveal">
+      Complete your goals and earn belts. Not handed out. Not purchased. Earned — by showing up every day and doing the work.
+    </p>
+  </div>
+
+  <div class="belts-row reveal">
+    <div class="belt-item">
+      <div class="belt-color belt-white"></div>
+      <div class="belt-name">WHITE BELT</div>
+      <div class="belt-label">DAILY GOALS</div>
+      <div class="belt-desc">Complete every labelled goal for the day. Locked in.</div>
+    </div>
+    <div class="belt-item">
+      <div class="belt-color belt-yellow"></div>
+      <div class="belt-name">YELLOW BELT</div>
+      <div class="belt-label">NON-NEGOTIABLES</div>
+      <div class="belt-desc">Your non-negotiables done. No excuses accepted.</div>
+    </div>
+    <div class="belt-item">
+      <div class="belt-color belt-red"></div>
+      <div class="belt-name">RED BELT</div>
+      <div class="belt-label">LONG-TERM GOALS</div>
+      <div class="belt-desc">All long-term goals ticked. You played the long game.</div>
+    </div>
+  </div>
+</section>
+
+<!-- DASHBOARD PREVIEW -->
+<section id="preview">
+  <div class="section-label reveal">THE DASHBOARD</div>
+  <h2 class="section-title reveal">Everything in one screen.<br><em>Nothing you don't need.</em></h2>
+
+  <div class="preview-window reveal">
+    <div class="preview-bar">
+      <div class="preview-dot"></div>
+      <div class="preview-dot"></div>
+      <div class="preview-dot"></div>
+      <div class="preview-url">forges.fit — HOME</div>
+    </div>
+    <div class="preview-body">
+      <!-- Time & Date -->
+      <div class="preview-cell">
+        <div class="preview-label">TIME & DATE</div>
+        <div class="preview-val" id="preview-clock">--:--</div>
+        <div class="preview-sub" id="preview-date">---</div>
+        <div class="preview-bar-track" style="margin-top:16px;">
+          <div class="preview-bar-fill" style="--w:100%;background:#333;box-shadow:none;animation:none;width:100%;"></div>
+        </div>
+      </div>
+      <!-- Goals -->
+      <div class="preview-cell">
+        <div class="preview-label">GOALS TODAY</div>
+        <div class="preview-val">5</div>
+        <div class="preview-sub">of 5 complete · ✓ all done</div>
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:4px;">
+          <div class="preview-check"><div class="preview-cb done">✓</div><span class="preview-item-label done">Morning run</span></div>
+          <div class="preview-check"><div class="preview-cb done">✓</div><span class="preview-item-label done">Cold shower</span></div>
+          <div class="preview-check"><div class="preview-cb done">✓</div><span class="preview-item-label done">Read 30 mins</span></div>
+          <div class="preview-check"><div class="preview-cb done">✓</div><span class="preview-item-label done">Journal entry</span></div>
+          <div class="preview-check"><div class="preview-cb done">✓</div><span class="preview-item-label done">No junk food</span></div>
+        </div>
+      </div>
+      <!-- Non-Negs -->
+      <div class="preview-cell">
+        <div class="preview-label">NON-NEGOTIABLES</div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
+          <div class="preview-check"><div class="preview-cb done">✓</div><span class="preview-item-label done">Workout</span></div>
+          <div class="preview-check"><div class="preview-cb done">✓</div><span class="preview-item-label done">Meditate</span></div>
+          <div class="preview-check"><div class="preview-cb">　</div><span class="preview-item-label">8hrs sleep</span></div>
+          <div class="preview-check"><div class="preview-cb">　</div><span class="preview-item-label">No alcohol</span></div>
+          <div class="preview-check"><div class="preview-cb">　</div><span class="preview-item-label">Protein goal</span></div>
+        </div>
+      </div>
+      <!-- Long-term -->
+      <div class="preview-cell">
+        <div class="preview-label">LONG-TERM GOALS</div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
+          <div class="preview-check"><div class="preview-cb">　</div><span class="preview-item-label">Launch business</span></div>
+          <div class="preview-check"><div class="preview-cb">　</div><span class="preview-item-label">Drop 10kg</span></div>
+          <div class="preview-check"><div class="preview-cb">　</div><span class="preview-item-label">Save £10k</span></div>
+          <div class="preview-check"><div class="preview-cb">　</div><span class="preview-item-label">Learn Spanish</span></div>
+          <div class="preview-check"><div class="preview-cb">　</div><span class="preview-item-label">Black belt</span></div>
+        </div>
+      </div>
+      <!-- XP -->
+      <div class="preview-cell">
+        <div class="preview-label">LEVEL</div>
+        <div class="preview-val">12</div>
+        <div class="preview-sub">1,840 XP total</div>
+        <div class="preview-bar-track" style="margin-top:10px;">
+          <div class="preview-bar-fill" style="--w:72%;"></div>
+        </div>
+        <div style="margin-top:16px;font-size:7px;color:#333;font-family:var(--mono);">YOUR MENTOR</div>
+        <div style="font-size:9px;color:#555;font-family:var(--mono);margin-top:6px;line-height:1.6;">
+          "You're on a 14-day streak. Don't break it tonight."
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SOCIAL PROOF -->
+<section id="proof">
+  <div class="section-label reveal">BY THE NUMBERS</div>
+  <div class="proof-row">
+    <div class="proof-stat reveal">
+      <div class="proof-num">9</div>
+      <div class="proof-label">PAGES OF TOOLS</div>
+    </div>
+    <div class="proof-stat reveal">
+      <div class="proof-num">3</div>
+      <div class="proof-label">BELT RANKS</div>
+    </div>
+    <div class="proof-stat reveal">
+      <div class="proof-num">∞</div>
+      <div class="proof-label">REASONS TO START</div>
+    </div>
+    <div class="proof-stat reveal">
+      <div class="proof-num">1</div>
+      <div class="proof-label">LIFE TO BUILD</div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta">
+  <h2 class="cta-title reveal">STOP PLANNING.<br>START FORGING.</h2>
+  <p class="cta-sub reveal">No subscription. No upsells. Just the work.</p>
+  <div class="reveal">
+    <a href="forge-onboarding.html" class="btn-primary" style="font-size:12px;padding:20px 56px;">ENTER FORGE →</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">FORGE</div>
+  <div class="footer-copy">© 2026 FORGES.FIT — BUILD THE LIFE YOU ARE CAPABLE OF</div>
+  <div class="footer-links">
+    <a href="#">PRIVACY</a>
+    <a href="#">TERMS</a>
+    <a href="forge-onboarding.html">APP</a>
+  </div>
+</footer>
+
+<script>
+// Live clock in preview
+function updatePreviewClock(){
+  const now=new Date();
+  const h=String(now.getHours()).padStart(2,'0');
+  const m=String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('preview-clock').textContent=h+':'+m;
+  const days=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const months=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  document.getElementById('preview-date').textContent=
+    days[now.getDay()]+' '+now.getDate()+' '+months[now.getMonth()]+' '+now.getFullYear();
+}
+updatePreviewClock();
+setInterval(updatePreviewClock,1000);
+
+// Scroll reveal
+const reveals=document.querySelectorAll('.reveal');
+const obs=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      e.target.classList.add('visible');
+      // Stagger children if grid
+      const children=e.target.querySelectorAll('.feat-card,.belt-item,.proof-stat');
+      children.forEach((c,i)=>{
+        c.style.opacity='0';
+        c.style.transform='translateY(20px)';
+        c.style.transition=`opacity 0.5s ease ${i*0.1}s, transform 0.5s ease ${i*0.1}s`;
+        setTimeout(()=>{c.style.opacity='1';c.style.transform='translateY(0)';},i*100);
+      });
+    }
+  });
+},{threshold:0.1});
+reveals.forEach(r=>obs.observe(r));
+</script>
+</body>
+</html>
