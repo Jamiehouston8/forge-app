@@ -1647,6 +1647,9 @@ async function doSignup(){
     if(data.error){err.textContent=data.error_description||data.error;err.style.color='#888';return;}
     if(data.user&&data.access_token){
       currentUser=data.user;userToken=data.access_token;
+      // Save the session the same way login does, so onboarding / a page reload
+      // recognises the new account instead of showing the login screen again.
+      try{localStorage.setItem("forge_session",JSON.stringify({access_token:data.access_token,user:data.user,expires_at:data.expires_at||(Date.now()/1000+3600)}));}catch(e){}
       await enterApp(true);
     } else {
       err.textContent='Account created! Check your email to confirm, then log in.';

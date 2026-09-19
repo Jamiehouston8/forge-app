@@ -1530,6 +1530,74 @@ async function loginExisting(email, pw){
 
 var createdUserId = null;
 var createdUserToken = null;
+var sessionEmail = '';
+
+// If the person already signed up / logged in on the main page, reuse that
+// session instead of asking for their email and password all over again.
+(function restoreExistingSession(){
+  try {
+    var s = JSON.parse(localStorage.getItem('forge_session') || 'null');
+    var fresh = s && s.access_token && s.user && s.user.id &&
+      (!s.expires_at || s.expires_at * 1000 > Date.now() + 60000);
+    if(fresh){
+      createdUserId = s.user.id;
+      createdUserToken = s.access_token;
+      sessionEmail = s.user.email || '';
+    }
+  } catch(e){}
+})();
+
+// Tell them they're already signed in, and hide the email/password boxes.
+window.addEventListener('DOMContentLoaded', function(){
+  if(!createdUserId || !sessionEmail) return;
+  try {
+    ['pay-email','pay-password'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el && el.parentElement) el.parentElement.style.display = 'none';
+    });
+    var sec = document.getElementById('payment-account-section');
+    if(sec){
+      var note = document.createElement('div');
+      note.style.cssText = "font-family:'Inter',sans-serif;font-size:13px;color:#8a8a8a;margin-bottom:14px;line-height:1.5;";
+      note.textContent = 'Signed in as ' + sessionEmail + '. Pick a username to finish.';
+      sec.insertBefore(note, sec.children[1] || null);
+    }
+    var span = Array.prototype.slice.call(document.querySelectorAll('span')).filter(function(x){
+      return /Already have an account/.test(x.textContent);
+    })[0];
+    if(span && span.parentElement){
+      var top = document.createElement('div');
+      top.style.cssText = "font-family:'Inter',sans-serif;font-size:13px;color:#8a8a8a;text-align:center;margin:0 0 12px;line-height:1.5;";
+      top.textContent = "You're signed in as " + sessionEmail + ". Answer a few questions to finish setting up.";
+      span.parentElement.parentElement.insertBefore(top, span.parentElement);
+    }
+  } catch(e){}
+});
+
+// Give the account a username (how other users find them) without touching
+// anything else. Never overwrites an existing username.
+async function saveUsername(userId, token, raw){
+  try {
+    var name = String(raw || '').trim();
+    if(!name || !token) return;
+    var full = name.toLowerCase().replace(/[^a-z0-9]/g,'') + '#' + Math.floor(1000 + Math.random() * 9000);
+    var auth = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token };
+    var existingData = {}, hasRow = false;
+    var cur = await fetch(SUPABASE_URL + '/rest/v1/lifeos?user_id=eq.' + userId + '&select=data', { headers: auth });
+    var rows = await cur.json();
+    if(Array.isArray(rows) && rows.length){ hasRow = true; existingData = rows[0].data || {}; }
+    if(existingData.username) return;
+    var merged = Object.assign({ xp: 0, streak: 0, level: 1, beltLabel: 'White Belt' }, existingData, { username: full });
+    var h = Object.assign({ 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, auth);
+    if(hasRow){
+      await fetch(SUPABASE_URL + '/rest/v1/lifeos?user_id=eq.' + userId, { method: 'PATCH', headers: h,
+        body: JSON.stringify({ data: merged, updated_at: new Date().toISOString() }) });
+    } else {
+      await fetch(SUPABASE_URL + '/rest/v1/lifeos', { method: 'POST', headers: h,
+        body: JSON.stringify({ user_id: userId, data: merged, updated_at: new Date().toISOString() }) });
+    }
+  } catch(e){ console.log('Username save error (non-fatal):', e); }
+}
 
 async function createAccount(){
   var email = document.getElementById('acc-email').value.trim();
@@ -1655,6 +1723,8 @@ async function completePayment(){
   // Step 1 — create account if not already created
   var email = document.getElementById('pay-email') ? document.getElementById('pay-email').value.trim() : '';
   var pw = document.getElementById('pay-password') ? document.getElementById('pay-password').value : '';
+  if(!email && sessionEmail) email = sessionEmail;
+  var usernameSaved = false;
 
   if(!createdUserId){
     var username = document.getElementById('pay-username') ? document.getElementById('pay-username').value.trim() : '';
@@ -1703,6 +1773,7 @@ async function completePayment(){
                 updated_at: new Date().toISOString()
               })
             });
+            usernameSaved = true;
           } catch(e){ console.log('Username save error:', e); }
         }
       } else if(isAlreadyRegistered(signupData)){
@@ -1731,6 +1802,12 @@ async function completePayment(){
       btn.disabled = false;
       return;
     }
+  }
+
+  // Signed-in (or just-logged-in existing) users still need their username saved
+  if(createdUserId && createdUserToken && !usernameSaved){
+    var pickedName = document.getElementById('pay-username') ? document.getElementById('pay-username').value : '';
+    await saveUsername(createdUserId, createdUserToken, pickedName);
   }
 
   btn.textContent = 'Loading...';
