@@ -1510,6 +1510,24 @@ function goToPaymentFromAccount(){
   currentScreen = 'payment';
 }
 
+// An account that already exists (e.g. created on the main page's signup) is
+// logged into with the same details instead of dead-ending on an error.
+function isAlreadyRegistered(d){
+  return !!d && (d.error_code === 'user_already_exists' ||
+    /already registered/i.test(String(d.msg || d.error_description || d.error || '')));
+}
+async function loginExisting(email, pw){
+  try {
+    var r = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email: email, password: pw })
+    });
+    var d = await r.json();
+    return (d.access_token && d.user) ? d : null;
+  } catch(e){ return null; }
+}
+
 var createdUserId = null;
 var createdUserToken = null;
 
@@ -1542,6 +1560,20 @@ async function createAccount(){
       // Save onboarding answers + plan to their profile
       await saveOnboardingProfile(createdUserId, createdUserToken);
       goToPaymentFromAccount();
+    } else if(isAlreadyRegistered(data)){
+      // Already signed up (e.g. on the main page): log in with the same details and carry on
+      var existingLogin = await loginExisting(email, pw);
+      if(existingLogin){
+        createdUserId = existingLogin.user.id;
+        createdUserToken = existingLogin.access_token;
+        await saveOnboardingProfile(createdUserId, createdUserToken);
+        goToPaymentFromAccount();
+      } else {
+        errEl.textContent = 'An account with this email already exists. Enter the password you signed up with, or log in on the main page.';
+        btn.textContent = 'Create Account →';
+        btn.style.opacity = '1';
+        btn.disabled = false;
+      }
     } else if(data.msg || data.error_description || data.error){
       errEl.textContent = data.msg || data.error_description || data.error;
       btn.textContent = 'Create Account →';
@@ -1569,16 +1601,32 @@ async function saveOnboardingProfile(userId, token){
       plan: generatedPlan,
       onboardedAt: new Date().toISOString()
     };
-    await fetch(SUPABASE_URL + '/rest/v1/lifeos', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': 'Bearer ' + (token || SUPABASE_ANON_KEY),
-        'Prefer': 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify({ user_id: userId, data: { onboardingProfile: profileData } })
-    });
+    var auth = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + (token || SUPABASE_ANON_KEY) };
+    // The lifeos table has no unique key on user_id, so an "upsert" would add a
+    // second row for the same user (and a plain overwrite would wipe their
+    // progress). Read first: update the existing row, or insert if there is none.
+    var existingData = {}, hasRow = false;
+    try {
+      var cur = await fetch(SUPABASE_URL + '/rest/v1/lifeos?user_id=eq.' + userId + '&select=data', { headers: auth });
+      var curRows = await cur.json();
+      if(Array.isArray(curRows) && curRows.length){
+        hasRow = true;
+        existingData = curRows[0].data || {};
+      }
+    } catch(e){}
+    var merged = Object.assign({}, existingData, { onboardingProfile: profileData });
+    var jsonHeaders = Object.assign({ 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, auth);
+    if(hasRow){
+      await fetch(SUPABASE_URL + '/rest/v1/lifeos?user_id=eq.' + userId, {
+        method: 'PATCH', headers: jsonHeaders,
+        body: JSON.stringify({ data: merged, updated_at: new Date().toISOString() })
+      });
+    } else {
+      await fetch(SUPABASE_URL + '/rest/v1/lifeos', {
+        method: 'POST', headers: jsonHeaders,
+        body: JSON.stringify({ user_id: userId, data: merged, updated_at: new Date().toISOString() })
+      });
+    }
   } catch(e){
     console.log('Profile save error (non-fatal):', e);
   }
@@ -1656,6 +1704,18 @@ async function completePayment(){
               })
             });
           } catch(e){ console.log('Username save error:', e); }
+        }
+      } else if(isAlreadyRegistered(signupData)){
+        var existingPay = await loginExisting(email, pw);
+        if(existingPay){
+          createdUserId = existingPay.user.id;
+          createdUserToken = existingPay.access_token;
+        } else {
+          if(errEl) errEl.textContent = 'An account with this email already exists. Enter the password you signed up with, or log in on the main page.';
+          btn.textContent = originalText;
+          btn.style.opacity = '1';
+          btn.disabled = false;
+          return;
         }
       } else {
         if(errEl) errEl.textContent = signupData.msg || signupData.error_description || 'Account creation failed.';
