@@ -32,7 +32,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY02") ?? Deno.env.get("ANTHROPIC_API_KEY");
   if (!anthropicKey) return json({ error: "AI is not configured yet" }, 500);
 
   // Must be a real user session, not the public anon key.
