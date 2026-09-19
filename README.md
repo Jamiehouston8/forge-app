@@ -4,7 +4,7 @@ A personal operating system with an AI mentor. Goals broken into daily actions,
 progression mechanics, and a coach that reads your recent state and answers with one
 specific critique and one next action.
 
-Live at **[forges.fit](https://forges.fit)**. Also a Play Store build via Capacitor.
+Live at **[forge-app.co.uk](https://forge-app.co.uk)**. Also a Play Store build via Capacitor.
 
 Full write-up — architecture, the decisions behind it, and what I'd change:
 **[the case study](https://github.com/jamiehouston8/jamie-portfolio/blob/master/case-study-forge.html)**

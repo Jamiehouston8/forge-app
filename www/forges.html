@@ -4201,7 +4201,7 @@ async function init(){
   }
 
   // ── HANDLE PASSWORD RESET REDIRECT ──
-  // Supabase sends back: https://forges.fit/#access_token=...&type=recovery
+  // Supabase sends back: https://forge-app.co.uk/#access_token=...&type=recovery
   const hash=window.location.hash;
   if(hash&&hash.includes('type=recovery')){
     const params=new URLSearchParams(hash.replace('#',''));
