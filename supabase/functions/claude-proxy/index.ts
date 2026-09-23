@@ -32,8 +32,15 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY02") ?? Deno.env.get("ANTHROPIC_API_KEY");
+  // Try the plausible secret names in order (newest first) and log which one
+  // matched, plus the last 4 chars (safe) so it can be compared with the key
+  // list in the Anthropic console.
+  const KEY_NAMES = ["forge-proxy", "ANTHROPIC_API_KEY02", "ANTHROPIC_API_KEY"];
+  const keyName = KEY_NAMES.find((n) => (Deno.env.get(n) ?? "").trim() !== "");
+  const anthropicKey = keyName ? Deno.env.get(keyName)!.trim() : undefined;
   if (!anthropicKey) return json({ error: "AI is not configured yet" }, 500);
+  console.log(`claude-proxy using secret "${keyName}" ending ...${anthropicKey.slice(-4)}`);
+  const workspaceId = (Deno.env.get("ANTHROPIC_WORKSPACE_ID") ?? "").trim();
 
   // Must be a real user session, not the public anon key.
   const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
@@ -70,6 +77,8 @@ Deno.serve(async (req: Request) => {
       "content-type": "application/json",
       "x-api-key": anthropicKey,
       "anthropic-version": "2023-06-01",
+      // Only needed if the key is not scoped to a workspace.
+      ...(workspaceId ? { "anthropic-workspace-id": workspaceId } : {}),
     },
     body: JSON.stringify({ model, max_tokens, ...(system ? { system } : {}), messages }),
   });
