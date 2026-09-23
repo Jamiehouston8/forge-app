@@ -2322,11 +2322,12 @@ function renderMentorPage(){
   } else {
     box.innerHTML=state.mentorHistory.map(m=>{
       const isUser=m.role==='user';
-      let content=m.content
+      const isAction=!isUser&&m.content.startsWith('[ACTION]');
+      let content=(isAction?'✓ '+m.content.slice(8).trim():m.content)
         .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
         .replace(/\n\n/g,'</p><p style="margin-top:10px;">')
         .replace(/\n/g,'<br/>');
-      return `<div class="msg ${isUser?'user':'ai'}">${isUser?esc(m.content):content}</div>`;
+      return `<div class="msg ${isUser?'user':'ai'}"${isAction?' style="border-left-color:#7b6cff;opacity:0.85;"':''}>${isUser?esc(m.content):content}</div>`;
     }).join('');
   }
   box.scrollTop=box.scrollHeight;
@@ -2493,6 +2494,82 @@ async function triggerAutoMessage(prompt,type){
   }catch(e){loader.remove();}
 }
 
+// MENTOR TOOLS — lets the mentor act on the app, not just talk about it.
+// Kept separate from state.mentorHistory (which stays plain {role,content:string}
+// pairs — it's read as text elsewhere, e.g. buildMentorContext's pattern checks).
+const MENTOR_TOOLS=[
+  {name:'complete_goal',description:"Mark one of today's daily goals as done, matched by its label. Only call this when the user clearly says they finished it — don't assume.",input_schema:{type:'object',properties:{label:{type:'string',description:'The goal label text (or a close match) to mark done'}},required:['label']}},
+  {name:'complete_nonnegotiable',description:"Mark one of today's non-negotiables as done, matched by its label. Only call this when the user clearly says they finished it.",input_schema:{type:'object',properties:{label:{type:'string',description:'The non-negotiable label text (or a close match) to mark done'}},required:['label']}},
+  {name:'add_note',description:"Save a note to the user's Notes page — use to capture an idea, insight, or something worth remembering from this conversation.",input_schema:{type:'object',properties:{title:{type:'string'},content:{type:'string'}},required:['title','content']}},
+  {name:'log_health',description:"Log the user's health stats for today when they mention sleep, steps, water, or calories in the conversation. Only include the fields they actually gave.",input_schema:{type:'object',properties:{sleep_hours:{type:'number'},steps:{type:'number'},water_glasses:{type:'number'},calories:{type:'number'}}}},
+  {name:'add_hustle_task',description:"Add a new task to one of the user's side hustles/projects, matched by the project's name.",input_schema:{type:'object',properties:{hustle_name:{type:'string'},task:{type:'string'}},required:['hustle_name','task']}}
+];
+
+function agentFindLabelIndex(arr,label){
+  const norm=s=>(s||'').toLowerCase().trim();
+  const target=norm(label);
+  if(!target)return -1;
+  let i=arr.findIndex(g=>g.label&&norm(g.label)===target);
+  if(i<0)i=arr.findIndex(g=>g.label&&(norm(g.label).includes(target)||target.includes(norm(g.label))));
+  return i;
+}
+
+function runMentorTool(name,input){
+  try{
+    if(name==='complete_goal'){
+      const i=agentFindLabelIndex(state.goals,input.label);
+      if(i<0)return{ok:false,message:`No goal matching "${input.label}" found.`};
+      if(state.goals[i].done)return{ok:true,message:`"${state.goals[i].label}" was already marked done.`};
+      toggleCheck('goals',i,'goals-list');
+      return{ok:true,message:`Marked goal "${state.goals[i].label}" as done (+10 XP).`};
+    }
+    if(name==='complete_nonnegotiable'){
+      const i=agentFindLabelIndex(state.nonneg,input.label);
+      if(i<0)return{ok:false,message:`No non-negotiable matching "${input.label}" found.`};
+      if(state.nonneg[i].done)return{ok:true,message:`"${state.nonneg[i].label}" was already marked done.`};
+      toggleCheck('nonneg',i,'nonneg-list');
+      return{ok:true,message:`Marked non-negotiable "${state.nonneg[i].label}" as done (+10 XP).`};
+    }
+    if(name==='add_note'){
+      const note={id:Date.now(),title:input.title||'Untitled',content:input.content||'',created:new Date().toLocaleDateString('en-GB')};
+      state.notes.unshift(note);
+      if(typeof renderNotes==='function')renderNotes();
+      save();log('note (mentor): '+note.title);
+      return{ok:true,message:`Saved note "${note.title}".`};
+    }
+    if(name==='log_health'){
+      const h=state.health;
+      const set=[];
+      if(input.sleep_hours){h.sleep=input.sleep_hours;set.push(input.sleep_hours+'h sleep');}
+      if(input.steps){h.steps=input.steps;set.push(input.steps+' steps');}
+      if(input.water_glasses){h.water=input.water_glasses;set.push(input.water_glasses+' glasses water');}
+      if(input.calories){h.calories=input.calories;set.push(input.calories+' kcal');}
+      if(!set.length)return{ok:false,message:'No health values given.'};
+      renderHealth();save();log('health updated (mentor): '+set.join(', '));
+      return{ok:true,message:'Logged '+set.join(', ')+'.'};
+    }
+    if(name==='add_hustle_task'){
+      const norm=s=>(s||'').toLowerCase().trim();
+      const target=norm(input.hustle_name);
+      const h=state.hustles.find(h=>norm(h.name)===target)||state.hustles.find(h=>norm(h.name).includes(target)||target.includes(norm(h.name)));
+      if(!h)return{ok:false,message:`No project matching "${input.hustle_name}" found.`};
+      h.tasks.push({label:input.task,done:false});
+      if(typeof renderHustles==='function')renderHustles();
+      save();log('task added to '+h.name+' (mentor): '+input.task);
+      return{ok:true,message:`Added task "${input.task}" to ${h.name}.`};
+    }
+    return{ok:false,message:'Unknown tool: '+name};
+  }catch(e){return{ok:false,message:'Tool failed: '+String(e)};}
+}
+
+async function callMentor(messages,sys){
+  const res=await fetch('https://qkcnyoiaujhxbnszrbmw.supabase.co/functions/v1/claude-proxy',{
+    method:'POST',headers:aiHeaders(),
+    body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,system:sys,tools:MENTOR_TOOLS,messages})
+  });
+  return res.json();
+}
+
 async function sendMentorMsg(){
   const input=document.getElementById('mentor-page-input');
   const box=document.getElementById('mentor-chat-box');
@@ -2507,18 +2584,29 @@ async function sendMentorMsg(){
   box.appendChild(loader);
   box.scrollTop=box.scrollHeight;
   const sys=buildMentorContext();
-  const messages=state.mentorHistory.map(m=>({role:m.role==='user'?'user':'assistant',content:m.content}));
+  // Working message list for this turn only — tool_use/tool_result blocks live
+  // here, never in state.mentorHistory (which stays plain text, see above).
+  let messages=state.mentorHistory.map(m=>({role:m.role==='user'?'user':'assistant',content:m.content}));
   try{
-    const res=await fetch('https://qkcnyoiaujhxbnszrbmw.supabase.co/functions/v1/claude-proxy',{
-      method:'POST',headers:aiHeaders(),
-      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,system:sys,messages})
-    });
-    const data=await res.json();
-    const reply=data.content?.map(b=>b.text||'').join('')||data.error?.message||'No response.';
+    let data=await callMentor(messages,sys);
+    let hops=0;
+    while(data?.stop_reason==='tool_use'&&hops<4){
+      hops++;
+      const toolBlocks=(data.content||[]).filter(b=>b.type==='tool_use');
+      messages=[...messages,{role:'assistant',content:data.content}];
+      const results=toolBlocks.map(b=>{
+        const r=runMentorTool(b.name,b.input||{});
+        if(r.ok)state.mentorHistory.push({role:'assistant',content:'[ACTION] '+r.message});
+        return{type:'tool_result',tool_use_id:b.id,content:r.message,...(r.ok?{}:{is_error:true})};
+      });
+      messages=[...messages,{role:'user',content:results}];
+      data=await callMentor(messages,sys);
+    }
+    const reply=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text||'').join('')||data.error?.message||'No response.';
     loader.remove();
     state.mentorHistory.push({role:'assistant',content:reply});
-    const fmtReply=reply.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'</p><p style="margin-top:10px;">').replace(/\n/g,'<br/>');box.innerHTML+=`<div class="msg ai">${fmtReply}</div>`;
-    box.scrollTop=box.scrollHeight;
+    // Full re-render (not just append) since tool actions may have run mid-turn
+    renderMentorPage();
     setEl('m-msgs',state.mentorHistory.length);
     log('mentor consulted');
     save();

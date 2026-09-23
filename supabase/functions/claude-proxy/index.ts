@@ -64,7 +64,15 @@ Deno.serve(async (req: Request) => {
     return json({ error: "messages required" }, 400);
   }
   const system = typeof body?.system === "string" ? body.system : undefined;
-  if (JSON.stringify(messages).length + (system?.length ?? 0) > MAX_INPUT_CHARS) {
+  // Tool definitions so the mentor can act (mark goals done, log health, etc.),
+  // not just talk. Passed straight through to Anthropic; only shape-checked.
+  const tools = Array.isArray(body?.tools) ? body.tools : undefined;
+  const tool_choice = tools && body?.tool_choice ? body.tool_choice : undefined;
+  if (
+    JSON.stringify(messages).length + (system?.length ?? 0) +
+        (tools ? JSON.stringify(tools).length : 0) >
+      MAX_INPUT_CHARS
+  ) {
     return json({ error: "Request too large" }, 413);
   }
 
@@ -80,7 +88,14 @@ Deno.serve(async (req: Request) => {
       // Only needed if the key is not scoped to a workspace.
       ...(workspaceId ? { "anthropic-workspace-id": workspaceId } : {}),
     },
-    body: JSON.stringify({ model, max_tokens, ...(system ? { system } : {}), messages }),
+    body: JSON.stringify({
+      model,
+      max_tokens,
+      ...(system ? { system } : {}),
+      ...(tools ? { tools } : {}),
+      ...(tool_choice ? { tool_choice } : {}),
+      messages,
+    }),
   });
 
   const text = await upstream.text();
