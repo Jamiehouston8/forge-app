@@ -6,6 +6,8 @@ workflows:
     integrations:
       app_store_connect: Forge
     environment:
+      groups:
+        - certificate_credentials
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
