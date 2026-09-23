@@ -23,9 +23,12 @@ workflows:
         script: keychain initialize
       - name: Fetch signing files
         script: |
+          # CERTIFICATE_PRIVATE_KEY is stored base64-encoded (single line) so
+          # pasting it into Codemagic's UI can't mangle its line breaks.
+          echo "$CERTIFICATE_PRIVATE_KEY" | base64 -D > "$CM_BUILD_DIR/certificate_private_key.pem"
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --certificate-key @env:CERTIFICATE_PRIVATE_KEY \
+            --certificate-key @file:"$CM_BUILD_DIR/certificate_private_key.pem" \
             --create
       - name: Set up signing certificate
         script: keychain add-certificates
