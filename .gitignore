@@ -1,6 +1,10 @@
 # deps
 node_modules/
 
+# local CLI / tooling state
+.netlify/
+supabase/.temp/
+
 # secrets / signing — never commit
 *.keystore
 *.jks
