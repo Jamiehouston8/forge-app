@@ -1098,21 +1098,27 @@ input:focus,textarea:focus{border-color:#fff;}
 </div>
 
 <!-- MENTOR -->
-<div id="page-mentor" class="page" style="overflow-y:auto;">
-  <div style="display:flex;flex-direction:column;background:#1a1a1a;gap:1px;">
+<div id="page-mentor" class="page">
+  <div style="height:100%;">
 
-    <!-- TOP: CHAT -->
-    <div style="background:#0a0a0a;display:flex;flex-direction:column;height:calc(100vh - 44px);overflow:hidden;">
+    <!-- CHAT — this is the whole page now; stats/prompts live in a slide-out drawer -->
+    <div style="background:#0a0a0a;display:flex;flex-direction:column;height:100%;overflow:hidden;">
       <!-- Chat header -->
-      <div style="padding:16px 20px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-        <div>
-          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;font-weight:600;color:#fff;">AI Mentor</div>
-          <div style="font-size:11px;color:#444;margin-top:2px;" id="mentor-status-line">Online · ready to work</div>
+      <div style="padding:14px 20px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#9d90ff,#7b6cff 60%,#4a3ecf);display:flex;align-items:center;justify-content:center;font-family:var(--font-hud);font-size:13px;font-weight:900;color:#fff;flex-shrink:0;box-shadow:0 0 14px rgba(123,108,255,0.45);">F</div>
+          <div>
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;font-weight:600;color:#fff;">AI Mentor</div>
+            <div style="font-size:11px;color:#666;margin-top:1px;display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#3ddc84;box-shadow:0 0 5px rgba(61,220,132,0.8);flex-shrink:0;"></span><span id="mentor-status-line">Online · ready to work</span></div>
+          </div>
         </div>
-        <button onclick="clearMentorChat()" style="background:transparent;border:1px solid #222;color:#555;font-size:11px;padding:5px 12px;cursor:pointer;border-radius:6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;transition:all 0.1s;" onmouseover="this.style.borderColor='#555';this.style.color='#fff'" onmouseout="this.style.borderColor='#222';this.style.color='#555'">Clear</button>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button onclick="toggleMentorDrawer()" style="background:transparent;border:1px solid #222;color:#999;font-size:11px;padding:6px 12px;cursor:pointer;border-radius:6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;transition:all 0.1s;display:flex;align-items:center;gap:6px;" onmouseover="this.style.borderColor='#555';this.style.color='#fff'" onmouseout="this.style.borderColor='#222';this.style.color='#999'"><span style="font-size:13px;line-height:1;">☰</span>Stats</button>
+          <button onclick="clearMentorChat()" style="background:transparent;border:1px solid #222;color:#555;font-size:11px;padding:6px 12px;cursor:pointer;border-radius:6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;transition:all 0.1s;" onmouseover="this.style.borderColor='#555';this.style.color='#fff'" onmouseout="this.style.borderColor='#222';this.style.color='#555'">Clear</button>
+        </div>
       </div>
 
-      <!-- Messages — flex:1 and overflow-y:auto keeps it scrollable -->
+      <!-- Messages — flex:1 and overflow-y:auto keeps it scrollable, and now owns almost the whole screen -->
       <div id="mentor-chat-box" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;min-height:0;"></div>
 
       <!-- Input area — flex-shrink:0 keeps it always visible -->
@@ -1124,33 +1130,39 @@ input:focus,textarea:focus{border-color:#fff;}
       </div>
     </div>
 
-    <!-- BELOW: STATUS / QUICK PROMPTS / CONVERSATION (moved below the AI Mentor chat) -->
-    <div style="background:#0a0a0a;display:flex;flex-direction:column;">
-      <!-- Stats -->
-      <div style="padding:16px;border-bottom:1px solid #1a1a1a;">
-        <div style="font-family:var(--font-hud);font-size:8px;color:#444;letter-spacing:0.15em;margin-bottom:12px;">YOUR STATUS</div>
-        <div style="display:flex;flex-direction:column;gap:8px;" id="mentor-snapshot"></div>
-      </div>
+  </div>
 
-      <!-- Quick prompts -->
-      <div style="padding:16px;border-bottom:1px solid #1a1a1a;">
-        <div style="font-family:var(--font-hud);font-size:8px;color:#444;letter-spacing:0.15em;margin-bottom:10px;">QUICK PROMPTS</div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <button onclick="quickPrompt('What should I focus on today based on my goals?')" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">What should I focus on today?</button>
-          <button onclick="quickPrompt('Review my progress and tell me where I am falling short.')" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">Review my progress</button>
-          <button onclick="quickPrompt('Give me one habit I should build this week.')" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">Habit for this week</button>
-          <button onclick="quickPrompt('I am feeling unmotivated. What do I do right now?')" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">I am unmotivated</button>
-          <button onclick="quickPrompt('Am I on track to level up fast? What is slowing me down?')" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">Am I on track?</button>
-        </div>
-      </div>
+  <!-- STATS / QUICK PROMPTS / CONVERSATION — slide-out drawer, off-screen until opened -->
+  <div id="mentor-drawer-backdrop" onclick="toggleMentorDrawer(false)" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:899;opacity:0;pointer-events:none;transition:opacity 0.2s;"></div>
+  <div id="mentor-drawer" style="position:fixed;top:0;right:0;bottom:0;width:320px;max-width:85vw;background:#0d0d0d;border-left:1px solid #1a1a1a;z-index:900;transform:translateX(100%);transition:transform 0.25s cubic-bezier(0.22,1,0.36,1);overflow-y:auto;box-shadow:-8px 0 30px rgba(0,0,0,0.5);">
+    <div style="padding:16px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;font-weight:600;color:#fff;">Mentor insights</div>
+      <button onclick="toggleMentorDrawer(false)" style="background:transparent;border:none;color:#666;font-size:18px;cursor:pointer;line-height:1;padding:4px;">✕</button>
+    </div>
 
-      <!-- History count -->
-      <div style="padding:16px;">
-        <div style="font-family:var(--font-hud);font-size:8px;color:#444;letter-spacing:0.15em;margin-bottom:8px;">CONVERSATION</div>
-        <div id="mentor-history-count" style="font-size:12px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"></div>
+    <!-- Stats -->
+    <div style="padding:16px;border-bottom:1px solid #1a1a1a;">
+      <div style="font-family:var(--font-hud);font-size:8px;color:#444;letter-spacing:0.15em;margin-bottom:12px;">YOUR STATUS</div>
+      <div style="display:flex;flex-direction:column;gap:8px;" id="mentor-snapshot"></div>
+    </div>
+
+    <!-- Quick prompts -->
+    <div style="padding:16px;border-bottom:1px solid #1a1a1a;">
+      <div style="font-family:var(--font-hud);font-size:8px;color:#444;letter-spacing:0.15em;margin-bottom:10px;">QUICK PROMPTS</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button onclick="quickPrompt('What should I focus on today based on my goals?');toggleMentorDrawer(false)" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">What should I focus on today?</button>
+        <button onclick="quickPrompt('Review my progress and tell me where I am falling short.');toggleMentorDrawer(false)" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">Review my progress</button>
+        <button onclick="quickPrompt('Give me one habit I should build this week.');toggleMentorDrawer(false)" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">Habit for this week</button>
+        <button onclick="quickPrompt('I am feeling unmotivated. What do I do right now?');toggleMentorDrawer(false)" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">I am unmotivated</button>
+        <button onclick="quickPrompt('Am I on track to level up fast? What is slowing me down?');toggleMentorDrawer(false)" style="background:#111;border:1px solid #1a1a1a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:10px 12px;cursor:pointer;text-align:left;border-radius:8px;transition:all 0.1s;line-height:1.4;" onmouseover="this.style.background='#161616';this.style.borderColor='#2a2a2a'" onmouseout="this.style.background='#111';this.style.borderColor='#1a1a1a'">Am I on track?</button>
       </div>
     </div>
 
+    <!-- History count -->
+    <div style="padding:16px;">
+      <div style="font-family:var(--font-hud);font-size:8px;color:#444;letter-spacing:0.15em;margin-bottom:8px;">CONVERSATION</div>
+      <div id="mentor-history-count" style="font-size:12px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"></div>
+    </div>
   </div>
 </div>
 
@@ -2334,6 +2346,15 @@ function renderMentorPage(){
 }
 function quickPrompt(text){document.getElementById('mentor-page-input').value=text;sendMentorMsg();}
 function clearMentorChat(){state.mentorHistory=[];renderMentorPage();save();}
+function toggleMentorDrawer(open){
+  const drawer=document.getElementById('mentor-drawer');
+  const backdrop=document.getElementById('mentor-drawer-backdrop');
+  if(!drawer||!backdrop)return;
+  const willOpen=open===undefined?drawer.style.transform!=='translateX(0px)':open;
+  drawer.style.transform=willOpen?'translateX(0)':'translateX(100%)';
+  backdrop.style.opacity=willOpen?'1':'0';
+  backdrop.style.pointerEvents=willOpen?'auto':'none';
+}
 
 // ══════════════════════════
 // MENTOR — COACHING SYSTEM
@@ -4126,10 +4147,10 @@ function finishGuestOnboarding(){
     motivation:'',
   };
   state.onboarded=true;
-  state.mentorHistory=[{
-    role:'assistant',
-    content:'Guest session. Name: '+guestOnboardingData.name+'. Working on: '+guestOnboardingData.mainGoal+'. Coaching style: '+guestOnboardingData.coachStyle+'. Data will not persist. Give them full value this session.'
-  }];
+  // No seeded mentorHistory message here — buildMentorContext() already reads
+  // state.profile (name/mainGoal/coachStyle/goals, set above) into the system
+  // prompt, so the mentor has full context without a fake first chat bubble.
+  state.mentorHistory=[];
 
   setTimeout(()=>{
     document.getElementById('onboarding-screen').style.display='none';
