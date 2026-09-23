@@ -10,7 +10,7 @@ workflows:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.forgesfit.app"
-      node: 20
+      node: 22
       xcode: latest
     scripts:
       - name: Install npm dependencies
