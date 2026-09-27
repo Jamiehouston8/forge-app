@@ -26,6 +26,7 @@ does the same and opens a tab.
 - **Ranks**: belt per muscle group (White → Black), from estimated 1-rep max ÷
   bodyweight against per-lift standards (`exercises.js`). Overall gym belt.
 - **History**: past workouts, tap to expand.
+- **Recovery** (added 27 Sep, replaces the Health page in 2.0): one-tap sleep hours with a 7-night chart, water glasses, bodyweight weigh-ins with a trend line (feeds belt ranks). Writes sleep/water into Forge's `state.health` so the home screen + mentor keep working. Steps/calories dropped for now → Apple Health / Health Connect sync after 2.0; a food database only if nutrition becomes a priority.
 
 Data lives in localStorage under `forge_gym_v1`, shaped as it will be in `state.gym`.
 

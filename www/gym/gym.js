@@ -7,6 +7,9 @@
 //   host.toast(msg)         → show a short message
 //   host.awardXP(n, reason) → optional; Forge adds it to the main XP/level
 //   host.dev                → optional; shows prototype tools (demo data)
+//   host.health             → optional { get() → {sleep, water}, set({sleep?, water?}) }
+//                             Forge passes its daily state.health so the home
+//                             screen and mentor see what's logged in Recovery.
 // Needs exercises.js and bodymap.js loaded first.
 
 const ForgeGym = (function () {
@@ -17,7 +20,7 @@ const ForgeGym = (function () {
   let restTimer = null, clockTimer = null, restEnd = 0, restTotal = 0;
   let tab = 'train', bodyMode = 'rank', selectedMuscle = null, pickerFilter = 'all';
 
-  function fresh() { return { bodyweight: 80, rest: 90, xp: 0, workouts: [], active: null }; }
+  function fresh() { return { bodyweight: 80, rest: 90, xp: 0, workouts: [], active: null, weights: [], recovery: {} }; }
   function save() { host.put(G); }
   const $ = sel => root.querySelector(sel);
 
@@ -138,6 +141,10 @@ const ForgeGym = (function () {
     return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
   }
   function fmtDate(t) { return new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); }
+  function dayKey(t) {
+    const d = new Date(t === undefined ? Date.now() : t);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function beltChip(b, label) {
     if (!b) return '<span class="belt"><i style="background:#262626"></i>Unranked</span>';
@@ -211,6 +218,46 @@ const ForgeGym = (function () {
     G.active = null; stopRest(); save(); render();
   }
 
+  // ───────── recovery (sleep, water, bodyweight) ─────────
+  const WATER_GOAL = 8;
+  function todayRecovery() {
+    const k = dayKey();
+    const r = Object.assign({ sleep: null, water: 0 }, G.recovery[k] || {});
+    if (host.health) {
+      const h = host.health.get() || {};
+      if (h.sleep) r.sleep = h.sleep;
+      if (h.water) r.water = h.water;
+    }
+    return r;
+  }
+  function setRecovery(patch) {
+    const k = dayKey();
+    G.recovery[k] = Object.assign(todayRecovery(), patch);
+    // keep ~120 days of history
+    const keys = Object.keys(G.recovery).sort();
+    while (keys.length > 120) delete G.recovery[keys.shift()];
+    save();
+    if (host.health) host.health.set(patch);
+    render();
+  }
+  function logWeight(kg) {
+    const k = dayKey();
+    G.weights = (G.weights || []).filter(w => w.date !== k);
+    G.weights.push({ date: k, kg });
+    G.weights.sort((a, b) => a.date < b.date ? -1 : 1);
+    G.bodyweight = kg;
+    save(); render();
+    host.toast('Bodyweight logged. Belt ranks updated.');
+  }
+  function sleepAvg(days) {
+    const vals = [];
+    for (let i = 0; i < days; i++) {
+      const r = G.recovery[dayKey(Date.now() - i * DAY)];
+      if (r && r.sleep) vals.push(r.sleep);
+    }
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  }
+
   // ───────── rest timer ─────────
   function startRest() {
     restTotal = G.rest * 1000;
@@ -243,6 +290,7 @@ const ForgeGym = (function () {
     if (tab === 'train') view.innerHTML = trainHTML();
     else if (tab === 'body') view.innerHTML = bodyHTML();
     else if (tab === 'ranks') view.innerHTML = ranksHTML();
+    else if (tab === 'recovery') view.innerHTML = recoveryHTML();
     else view.innerHTML = historyHTML();
     if (tab === 'train' && G.active) {
       clockTimer = setInterval(() => {
@@ -378,6 +426,69 @@ const ForgeGym = (function () {
       <div class="small muted" style="margin-top:12px;line-height:1.6">Ranks compare your estimated one-rep max to your bodyweight (${fmtKg(G.bodyweight)}). Change it in gym settings ⚙.</div>`;
   }
 
+  function recoveryHTML() {
+    const today = todayRecovery();
+    const avg = sleepAvg(7);
+    // last 7 nights, oldest first
+    const nights = [];
+    for (let i = 6; i >= 0; i--) {
+      const t = Date.now() - i * DAY, r = G.recovery[dayKey(t)];
+      nights.push({ label: new Date(t).toLocaleDateString('en-GB', { weekday: 'narrow' }), h: (i === 0 ? today.sleep : r && r.sleep) || 0 });
+    }
+    const ws = G.weights || [];
+    const cur = ws.length ? ws[ws.length - 1] : null;
+    const monthAgo = ws.filter(w => w.date <= dayKey(Date.now() - 28 * DAY)).pop();
+    const change = cur && monthAgo ? cur.kg - monthAgo.kg : null;
+    let tip;
+    if (avg !== null && avg < 7) tip = `You're averaging ${avg.toFixed(1)}h of sleep. Under 7 hours slows strength gains and recovery. An earlier night is the cheapest PR you'll get.`;
+    else if (today.water < 4 && new Date().getHours() >= 14) tip = `Only ${today.water} glass${today.water === 1 ? '' : 'es'} of water so far today. Get two down before your next session.`;
+    else if (!cur) tip = 'Log your bodyweight. Your belt ranks are measured against it, so it keeps them accurate.';
+    else tip = 'Recovery is where the gains happen. Keep sleep at 7+ hours and hit your water every day.';
+    const changeTxt = change === null
+      ? (cur ? 'Logged ' + fmtDate(new Date(cur.date + 'T12:00:00').getTime()) : 'Not logged yet')
+      : `${change > 0 ? '+' : ''}${change.toFixed(1)}kg in 4 weeks`;
+    const changeStyle = change === null ? '' : `color:${change > 0 ? 'var(--fg-pr)' : 'var(--fg-good)'}`;
+    return `
+      <div class="card coach"><div class="who">COACH</div><p>${esc(tip)}</p></div>
+
+      <h2>SLEEP LAST NIGHT</h2>
+      <div class="card">
+        <div class="pills">${[5, 6, 7, 8, 9, 10].map(h => `<button data-sleep="${h}" class="${today.sleep === h ? 'active' : ''}">${h}h${h === 10 ? '+' : ''}</button>`).join('')}</div>
+        <div class="sleep-bars">${nights.map(n => `<div><i style="height:${Math.min(100, n.h / 10 * 100)}%;background:${n.h >= 7 ? 'var(--fg-good)' : n.h ? 'var(--fg-pr)' : 'transparent'}"></i><span>${n.label}</span></div>`).join('')}</div>
+        <div class="small muted">${avg !== null ? `7-day average <b style="color:#fff">${avg.toFixed(1)}h</b> · aim for 7–9h` : 'Tap your hours each morning to build your sleep history.'}</div>
+      </div>
+
+      <h2>WATER TODAY</h2>
+      <div class="card water">
+        <button data-water="-1" aria-label="One less glass">−</button>
+        <div><div class="water-n">${today.water} <span>/ ${WATER_GOAL} glasses</span></div>
+          <div class="bar" style="margin-top:8px"><div style="width:${Math.min(100, today.water / WATER_GOAL * 100)}%;background:#4d9fff"></div></div></div>
+        <button data-water="1" aria-label="One more glass">+</button>
+      </div>
+
+      <h2>BODYWEIGHT</h2>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div class="bw-now">${fmtKg(G.bodyweight)}</div>
+          <div class="small${change === null ? ' muted' : ''}" style="${changeStyle}">${changeTxt}</div>
+        </div>
+        ${weightChart(ws)}
+        <div class="bw-log"><input class="bw-in" inputmode="decimal" placeholder="Today's weight (kg)"/><button class="btn btn-primary" data-act="log-weight">Log</button></div>
+        <div class="small muted" style="margin-top:8px">Weigh in once a week, same time of day. Your belt ranks use this.</div>
+      </div>`;
+  }
+
+  function weightChart(ws) {
+    const pts = ws.slice(-16);
+    if (pts.length < 2) return '';
+    const min = Math.min(...pts.map(p => p.kg)) - 0.5, max = Math.max(...pts.map(p => p.kg)) + 0.5;
+    const W = 300, H = 90;
+    const xy = pts.map((p, i) => [i / (pts.length - 1) * (W - 12) + 6, H - 8 - (p.kg - min) / (max - min) * (H - 16)]);
+    return `<svg viewBox="0 0 ${W} ${H}" class="bw-chart" preserveAspectRatio="none">
+      <polyline points="${xy.map(p => p.join(',')).join(' ')}" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    </svg>`;
+  }
+
   function historyHTML() {
     if (!G.workouts.length) return '<div class="empty">No workouts yet.<br/>Finished workouts show up here.</div>';
     return '<h2>HISTORY</h2>' + G.workouts.slice().reverse().map(w => {
@@ -455,7 +566,10 @@ const ForgeGym = (function () {
       k++; day -= (k % 3 === 0 ? 3 : 2);
     }
     workouts.forEach(w => { w.xp = w.exercises.reduce((a, e) => a + e.sets.length, 0) * XP.set + XP.finish; });
-    G = Object.assign(fresh(), { bodyweight: G.bodyweight, rest: G.rest, workouts, xp: workouts.reduce((a, w) => a + w.xp, 0) });
+    const weights = [], recovery = {};
+    for (let wk = 5; wk >= 0; wk--) weights.push({ date: dayKey(now - wk * 7 * DAY), kg: Math.round((82.4 - (5 - wk) * 0.3) * 10) / 10 });
+    [7, 6.5, 8, 7.5, 6, 7, 8, 7.5, 6.5, 7].forEach((h, i) => { recovery[dayKey(now - (i + 1) * DAY)] = { sleep: h, water: 5 + (i % 4) }; });
+    G = Object.assign(fresh(), { bodyweight: weights[weights.length - 1].kg, rest: G.rest, workouts, weights, recovery, xp: workouts.reduce((a, w) => a + w.xp, 0) });
     save(); closeSheet(); render(); host.toast('Demo data loaded');
   }
 
@@ -480,6 +594,8 @@ const ForgeGym = (function () {
     }
     if (d.mode) { bodyMode = d.mode; return render(); }
     if (d.m) { selectedMuscle = selectedMuscle === d.m ? null : d.m; return render(); }
+    if (d.sleep) return setRecovery({ sleep: Number(d.sleep) });
+    if (d.water) return setRecovery({ water: Math.max(0, todayRecovery().water + Number(d.water)) });
     if (d.hist) { t.querySelector('.hist-body').classList.toggle('hidden'); return; }
     if (d.rest) {
       if (d.rest === 'skip') return stopRest();
@@ -487,6 +603,11 @@ const ForgeGym = (function () {
     }
     switch (d.act) {
       case 'settings': return openSettings();
+      case 'log-weight': {
+        const kg = parseFloat(($('.bw-in') || {}).value);
+        if (!(kg > 25 && kg < 300)) { host.toast('Enter your weight in kg'); return; }
+        return logWeight(Math.round(kg * 10) / 10);
+      }
       case 'pick': return openPicker();
       case 'finish': return finishWorkout();
       case 'discard': return discardWorkout();
@@ -498,7 +619,7 @@ const ForgeGym = (function () {
       case 'save-settings': {
         const bw = parseFloat(sheet.querySelector('.set-bw').value);
         const rest = parseInt(sheet.querySelector('.set-rest').value, 10);
-        if (bw > 25 && bw < 300) G.bodyweight = bw;
+        if (bw > 25 && bw < 300 && bw !== G.bodyweight) { if (rest >= 15 && rest <= 600) G.rest = rest; closeSheet(); return logWeight(bw); }
         if (rest >= 15 && rest <= 600) G.rest = rest;
         save(); closeSheet(); render(); host.toast('Saved');
       }
@@ -517,6 +638,8 @@ const ForgeGym = (function () {
     host = hostApi;
     root = el;
     G = Object.assign(fresh(), host.get() || {});
+    if (!G.weights) G.weights = [];
+    if (!G.recovery) G.recovery = {};
     root.classList.add('fg');
     root.innerHTML = `
       <div class="fg-head">
@@ -524,7 +647,7 @@ const ForgeGym = (function () {
         <div class="head-right"><div class="fg-rank"></div><button class="icon-btn" data-act="settings" aria-label="Gym settings">⚙</button></div>
       </div>
       <div class="fg-tabs">
-        <button data-tab="train">Train</button><button data-tab="body">Body</button><button data-tab="ranks">Ranks</button><button data-tab="history">History</button>
+        <button data-tab="train">Train</button><button data-tab="body">Body</button><button data-tab="ranks">Ranks</button><button data-tab="recovery">Recovery</button><button data-tab="history">History</button>
       </div>
       <div class="fg-view"></div>
       <div class="fg-rest hidden">
@@ -547,11 +670,11 @@ const ForgeGym = (function () {
   }
 
   // Reload from the host (e.g. after Forge loads the account's data).
-  function refresh() { if (!root) return; G = Object.assign(fresh(), host.get() || {}); render(); }
+  function refresh() { if (!root) return; G = Object.assign(fresh(), host.get() || {}); if (!G.weights) G.weights = []; if (!G.recovery) G.recovery = {}; render(); }
 
   // One-paragraph summary for the AI mentor's context.
   function mentorSummary() {
-    if (!G || !G.workouts.length) return 'No gym workouts logged yet.';
+    if (!G || !G.workouts.length) return 'No gym workouts logged yet.' + (G && sleepAvg(7) !== null ? ` Sleep 7-day avg ${sleepAvg(7).toFixed(1)}h.` : '');
     const last = G.workouts[G.workouts.length - 1];
     const days = Math.max(0, Math.floor((Date.now() - last.end) / DAY));
     const week = G.workouts.filter(w => w.end > Date.now() - 7 * DAY).length;
@@ -562,8 +685,11 @@ const ForgeGym = (function () {
       .sort((a, b) => b.r.index - a.r.index).slice(0, 3)
       .map(x => `${MUSCLES[x.m]} ${x.r.belt.name} (${EX[x.r.exId].name} est. max ${fmtKg(x.r.e1rm)})`).join('; ');
     return `${G.workouts.length} workouts logged, ${week} in the last 7 days; last one "${last.name}" ${days === 0 ? 'today' : days + ' day(s) ago'}. ` +
-      `Overall gym belt: ${o ? o.belt.name : 'unranked'}. Strongest: ${top || 'n/a'}. Least trained this week: ${low}. Bodyweight ${fmtKg(G.bodyweight)}.`;
+      `Overall gym belt: ${o ? o.belt.name : 'unranked'}. Strongest: ${top || 'n/a'}. Least trained this week: ${low}. Bodyweight ${fmtKg(G.bodyweight)}.` +
+      (sleepAvg(7) !== null ? ` Sleep 7-day avg ${sleepAvg(7).toFixed(1)}h.` : '');
   }
 
-  return { mount, refresh, mentorSummary, render };
+  function openTab(name) { tab = name; render(); }
+
+  return { mount, refresh, mentorSummary, render, openTab };
 })();

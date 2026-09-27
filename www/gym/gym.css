@@ -17,8 +17,8 @@
 .fg .head-right { display: flex; align-items: center; gap: 10px; }
 .fg .icon-btn { width: 36px; height: 36px; border: 1px solid var(--fg-border); border-radius: 10px; font-size: 16px; color: #aaa; }
 
-.fg .fg-tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--fg-bg1); border: 1px solid var(--fg-border); border-radius: 12px; padding: 3px; margin-bottom: 16px; position: sticky; top: 0; z-index: 5; }
-.fg .fg-tabs button { font-family: var(--fg-hud); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #777; padding: 10px 0; border-radius: 9px; }
+.fg .fg-tabs { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--fg-bg1); border: 1px solid var(--fg-border); border-radius: 12px; padding: 3px; margin-bottom: 16px; position: sticky; top: 0; z-index: 5; }
+.fg .fg-tabs button { font-family: var(--fg-hud); font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; color: #777; padding: 10px 0; border-radius: 9px; }
 .fg .fg-tabs button.active { background: #fff; color: #000; }
 
 .fg .belt { display: inline-flex; align-items: center; gap: 6px; font-family: var(--fg-hud); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; padding: 5px 9px; border-radius: 999px; border: 1px solid var(--fg-border); background: var(--fg-bg1); white-space: nowrap; }
@@ -141,3 +141,21 @@
 .fg .xp-big { font-family: var(--fg-hud); font-size: 26px; font-weight: 900; color: var(--fg-xp); text-align: center; margin: 6px 0 2px; }
 .fg .beltup { background: #1a1408; border: 1px solid #3d2e10; border-radius: 12px; padding: 12px; margin-top: 10px; font-family: var(--fg-ui); font-size: 14px; }
 .fg .empty { text-align: center; color: var(--fg-muted); padding: 30px 10px; font-size: 13px; line-height: 1.6; }
+
+/* recovery */
+.fg .pills { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.fg .pills button { padding: 10px 0; border-radius: 9px; background: var(--fg-bg3); color: #aaa; font-size: 13px; }
+.fg .pills button.active { background: #fff; color: #000; }
+.fg .sleep-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; height: 84px; margin: 16px 0 10px; }
+.fg .sleep-bars div { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.fg .sleep-bars i { width: 100%; max-width: 22px; border-radius: 4px 4px 2px 2px; min-height: 2px; }
+.fg .sleep-bars span { font-size: 10px; color: #555; }
+.fg .water { display: grid; grid-template-columns: 48px 1fr 48px; gap: 14px; align-items: center; }
+.fg .water > button { height: 48px; border-radius: 12px; background: var(--fg-bg3); font-size: 22px; color: #ddd; }
+.fg .water-n { font-family: var(--fg-hud); font-size: 22px; font-weight: 700; text-align: center; }
+.fg .water-n span { font-family: var(--fg-mono); font-size: 12px; color: var(--fg-muted); font-weight: 400; }
+.fg .bw-now { font-family: var(--fg-hud); font-size: 24px; font-weight: 700; }
+.fg .bw-chart { width: 100%; height: 90px; display: block; margin: 12px 0; }
+.fg .bw-log { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; }
+.fg .bw-log input { background: var(--fg-bg3); border: 1px solid var(--fg-border); border-radius: 10px; padding: 12px; font-size: 16px; outline: none; min-width: 0; }
+.fg .bw-log .btn { width: auto; padding: 12px 20px; }

@@ -636,7 +636,7 @@ input:focus,textarea:focus{border-color:#fff;}
   <button id="mob-menu-btn" onclick="toggleMobMenu()" style="display:none;">☰</button>
   <div class="bar-nav">
     <button class="nav-btn active" onclick="showPage('home')">Home</button>
-    <button class="nav-btn" onclick="showPage('health')">Health</button>
+    <button class="nav-btn" id="nav-health" onclick="showPage('health')">Health</button>
     <button class="nav-btn" id="nav-gym" onclick="showPage('gym')" style="display:none;">Gym</button>
     <button class="nav-btn" onclick="showPage('hustles')">Work</button>
     <button class="nav-btn" onclick="showPage('journal')">Journal</button>
@@ -2270,12 +2270,22 @@ function mountGym(){
     put:d=>{state.gym=d;save();},
     toast:m=>toast(m,true),
     awardXP:(n,reason)=>awardXP(n,reason),
+    // Gym > Recovery logs sleep and water into the same daily state.health
+    // the home screen and the mentor already read.
+    health:{
+      get:()=>state&&state.health||{},
+      set:p=>{Object.assign(state.health,p);renderHealth();save();},
+    },
   });
   gymMounted=true;
+  // 2.0 replaces the Health page with Gym > Recovery.
+  const navHealth=document.getElementById('nav-health');
+  if(navHealth)navHealth.style.display='none';
 }
 
 function showPage(name){
   if(name==='gym'&&!GYM_ENABLED)name='home';
+  if(name==='health'&&GYM_ENABLED&&gymMounted){ForgeGym.openTab('recovery');name='gym';}
   if(name==='gym'&&gymMounted)ForgeGym.render();
   if(name==='leaderboard') setTimeout(loadLeaderboard, 50);
   if(name==='selfimprove') setTimeout(initRoutineOnCalendar, 300);

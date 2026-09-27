@@ -41,7 +41,7 @@
   if (parts.includes('demo') && !(JSON.parse(localStorage.getItem(KEY) || 'null') || {}).workouts?.length) {
     click('[data-act="settings"]'); click('[data-act="demo"]');
   }
-  const tab = parts.find(p => ['train', 'body', 'ranks', 'history'].includes(p));
+  const tab = parts.find(p => ['train', 'body', 'ranks', 'recovery', 'history'].includes(p));
   if (tab) click(`[data-tab="${tab}"]`);
 </script>
 </body>
