@@ -6,11 +6,11 @@ then merged into `www/forges.html` as a new **Gym** page.
 Run the prototype:
 
 ```
-cd forge-app/prototypes/gym
+cd forge-app
 python -m http.server 8790
 ```
 
-Open http://127.0.0.1:8790. Settings (⚙) → "Load 5 weeks of demo data" to see
+Open http://127.0.0.1:8790/prototypes/gym/. Settings (⚙) → "Load 5 weeks of demo data" to see
 ranks, the body map and the coach with data in them. `#demo,body` in the URL
 does the same and opens a tab.
 

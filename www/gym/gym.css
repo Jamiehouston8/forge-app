@@ -1,0 +1,143 @@
+/* Forge Gym. Every rule is scoped under .fg so nothing leaks into the rest of Forge. */
+.fg {
+  --fg-bg1: #111; --fg-bg2: #161616; --fg-bg3: #1c1c1c; --fg-border: #222;
+  --fg-muted: #666; --fg-xp: #7c6cff; --fg-pr: #ff8c42; --fg-good: #3ddc84;
+  --fg-hud: 'Orbitron', monospace; --fg-mono: 'Share Tech Mono', monospace; --fg-ui: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--fg-mono); font-size: 14px; color: #fff;
+}
+.fg *, .fg *::before, .fg *::after { box-sizing: border-box; }
+.fg button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.fg input { font: inherit; color: inherit; }
+.fg .hidden, .fg.hidden { display: none !important; }
+.fg.fg-root { max-width: 560px; margin: 0 auto; padding: 16px 16px 110px; }
+
+.fg .fg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.fg .brand { font-family: var(--fg-hud); font-weight: 900; font-size: 18px; letter-spacing: 0.18em; }
+.fg .sub { font-size: 11px; color: var(--fg-muted); margin-top: 3px; letter-spacing: 0.08em; }
+.fg .head-right { display: flex; align-items: center; gap: 10px; }
+.fg .icon-btn { width: 36px; height: 36px; border: 1px solid var(--fg-border); border-radius: 10px; font-size: 16px; color: #aaa; }
+
+.fg .fg-tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--fg-bg1); border: 1px solid var(--fg-border); border-radius: 12px; padding: 3px; margin-bottom: 16px; position: sticky; top: 0; z-index: 5; }
+.fg .fg-tabs button { font-family: var(--fg-hud); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #777; padding: 10px 0; border-radius: 9px; }
+.fg .fg-tabs button.active { background: #fff; color: #000; }
+
+.fg .belt { display: inline-flex; align-items: center; gap: 6px; font-family: var(--fg-hud); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; padding: 5px 9px; border-radius: 999px; border: 1px solid var(--fg-border); background: var(--fg-bg1); white-space: nowrap; }
+.fg .belt i { width: 14px; height: 6px; border-radius: 2px; display: inline-block; }
+.fg .belt i.black { background: #000; box-shadow: 0 0 0 1px #888 inset; }
+
+.fg h2 { font-family: var(--fg-hud); font-size: 11px; letter-spacing: 0.22em; color: var(--fg-muted); font-weight: 700; margin: 22px 0 10px; }
+.fg .fg-view > h2:first-child { margin-top: 4px; }
+.fg .card { background: var(--fg-bg1); border: 1px solid var(--fg-border); border-radius: 14px; padding: 14px; }
+.fg .card + .card { margin-top: 10px; }
+.fg .muted { color: var(--fg-muted); }
+.fg .small { font-size: 12px; }
+.fg .link { color: var(--fg-xp); }
+.fg .c-pr { color: var(--fg-pr); }
+.fg .c-xp { color: var(--fg-xp); }
+
+.fg .btn { display: block; width: 100%; padding: 14px; border-radius: 12px; font-family: var(--fg-ui); font-weight: 700; font-size: 15px; text-align: center; }
+.fg .btn-primary { background: #fff; color: #000; }
+.fg .btn-ghost { border: 1px solid var(--fg-border); color: #bbb; }
+.fg .btn-danger { border: 1px solid #3a1414; color: #ff6b6b; }
+.fg .btn + .btn { margin-top: 10px; }
+
+.fg .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fg .tpl { text-align: left; background: var(--fg-bg1); border: 1px solid var(--fg-border); border-radius: 14px; padding: 14px; }
+.fg .tpl b { display: block; font-family: var(--fg-hud); font-size: 13px; letter-spacing: 0.08em; margin-bottom: 6px; }
+.fg .tpl span { font-size: 11px; color: var(--fg-muted); line-height: 1.4; display: block; }
+.fg .tpl:active { border-color: #555; }
+
+.fg .coach { border-left: 3px solid var(--fg-xp); }
+.fg .coach .who { font-family: var(--fg-hud); font-size: 9px; letter-spacing: 0.2em; color: var(--fg-xp); margin-bottom: 8px; }
+.fg .coach p { font-family: var(--fg-ui); font-size: 14px; line-height: 1.55; color: #ddd; margin: 0; }
+.fg .coach p + p { margin-top: 6px; }
+
+.fg .wk-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+.fg .wk-name { font-family: var(--fg-hud); font-size: 16px; font-weight: 700; letter-spacing: 0.06em; }
+.fg .wk-time { font-size: 20px; color: #ddd; }
+.fg .wk-stats { display: flex; gap: 16px; font-size: 12px; color: var(--fg-muted); margin-bottom: 14px; flex-wrap: wrap; }
+.fg .wk-stats b { color: #fff; font-weight: normal; }
+
+.fg .ex { background: var(--fg-bg1); border: 1px solid var(--fg-border); border-radius: 14px; padding: 14px 12px 10px; margin-bottom: 12px; }
+.fg .ex-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.fg .ex-name { font-family: var(--fg-ui); font-weight: 700; font-size: 16px; }
+.fg .ex-musc { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+.fg .ex-x { color: #555; font-size: 18px; padding: 0 4px; }
+.fg .ex-hint { font-family: var(--fg-ui); font-size: 12px; color: var(--fg-xp); margin: 8px 0 4px; }
+.fg .sets { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.fg .sets th { font-family: var(--fg-hud); font-size: 8px; letter-spacing: 0.16em; color: #555; font-weight: 400; text-align: center; padding: 4px 2px; }
+.fg .sets td { text-align: center; padding: 3px 2px; }
+.fg .sets td.n { color: var(--fg-muted); width: 26px; white-space: nowrap; }
+.fg .sets td.prev { color: #555; font-size: 12px; width: 70px; }
+.fg .sets input { width: 64px; background: var(--fg-bg3); border: 1px solid transparent; border-radius: 8px; text-align: center; padding: 9px 4px; font-size: 16px; outline: none; }
+.fg .sets input:focus { border-color: #555; }
+.fg .sets tr.done input { background: #10251a; color: var(--fg-good); }
+.fg .chk { width: 38px; height: 36px; border-radius: 8px; background: var(--fg-bg3); color: #555; font-size: 16px; }
+.fg .sets tr.done .chk { background: var(--fg-good); color: #000; }
+.fg .pr-tag { font-family: var(--fg-hud); font-size: 8px; letter-spacing: 0.1em; color: #000; background: var(--fg-pr); border-radius: 4px; padding: 2px 4px; margin-left: 4px; vertical-align: middle; }
+.fg .add-set { width: 100%; margin-top: 6px; padding: 9px; border-radius: 8px; background: var(--fg-bg2); color: #aaa; font-size: 12px; letter-spacing: 0.08em; }
+
+.fg .fg-rest { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom)); width: calc(100% - 24px); max-width: 536px; background: #151225; border: 1px solid #2d2650; border-radius: 14px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr auto auto auto; align-items: center; gap: 10px; z-index: 900; }
+.fg .rest-label { font-family: var(--fg-hud); font-size: 9px; letter-spacing: 0.2em; color: var(--fg-xp); }
+.fg .rest-time { font-size: 20px; }
+.fg .rest-bar { grid-column: 1 / -1; height: 3px; background: #2d2650; border-radius: 2px; order: 9; }
+.fg .fg-rest-fill { height: 100%; background: var(--fg-xp); border-radius: 2px; width: 100%; transition: width 0.25s linear; }
+.fg .fg-rest button { font-size: 12px; padding: 7px 10px; border-radius: 8px; background: #221c3d; }
+
+.fg .seg { display: inline-flex; background: var(--fg-bg1); border: 1px solid var(--fg-border); border-radius: 10px; padding: 3px; }
+.fg .seg button { font-size: 12px; padding: 7px 14px; border-radius: 7px; color: #888; }
+.fg .seg button.active { background: #fff; color: #000; }
+.fg .maps { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 14px; }
+.fg .maps figure { text-align: center; margin: 0; }
+.fg .maps figcaption { font-family: var(--fg-hud); font-size: 8px; letter-spacing: 0.24em; color: #444; margin-top: 4px; }
+.fg .bodymap { width: 100%; max-width: 240px; height: auto; display: block; margin: 0 auto; }
+.fg .bodymap .shell { fill: #161616; }
+.fg .bodymap .muscle { fill: #262626; stroke: #0a0a0a; stroke-width: 1.2; stroke-linejoin: round; cursor: pointer; transition: fill 0.2s; }
+.fg .bodymap .muscle.selected { stroke: #fff; stroke-width: 1.6; }
+.fg .bodymap .detail line { stroke: #0a0a0a; stroke-width: 1.2; pointer-events: none; }
+.fg .legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 12px; font-size: 11px; color: #888; }
+.fg .legend span { display: inline-flex; align-items: center; gap: 5px; }
+.fg .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.fg .muscle-info { margin-top: 14px; }
+.fg .mi-name { font-family: var(--fg-ui); font-size: 17px; }
+
+.fg .overall { display: flex; align-items: center; gap: 14px; }
+.fg .overall .big-belt { width: 56px; height: 18px; border-radius: 4px; flex-shrink: 0; }
+.fg .overall .t { font-family: var(--fg-hud); font-size: 16px; font-weight: 700; letter-spacing: 0.08em; }
+.fg .rank-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 12px 0; border-bottom: 1px solid var(--fg-border); }
+.fg .rank-row:last-child { border-bottom: none; }
+.fg .rank-row .m { font-family: var(--fg-ui); font-weight: 600; font-size: 15px; }
+.fg .rank-row .d { grid-column: 1 / -1; font-size: 12px; color: var(--fg-muted); }
+.fg .bar { grid-column: 1 / -1; height: 5px; background: var(--fg-bg3); border-radius: 3px; overflow: hidden; }
+.fg .bar div { height: 100%; border-radius: 3px; }
+
+.fg .hist { cursor: pointer; }
+.fg .hist-top { display: flex; justify-content: space-between; align-items: baseline; }
+.fg .hist-name { font-family: var(--fg-ui); font-weight: 700; font-size: 15px; }
+.fg .hist-date { font-size: 11px; color: var(--fg-muted); }
+.fg .hist-meta { font-size: 12px; color: #888; margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
+.fg .hist-body { margin-top: 10px; border-top: 1px solid var(--fg-border); padding-top: 8px; font-size: 12px; color: #aaa; line-height: 1.7; }
+
+/* bottom sheet: picker / settings / workout summary */
+.fg-sheet { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9500; display: flex; align-items: flex-end; justify-content: center; }
+.fg .sheet-inner { width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; background: var(--fg-bg1); border: 1px solid var(--fg-border); border-bottom: none; border-radius: 18px 18px 0 0; padding: 18px 16px calc(24px + env(safe-area-inset-bottom)); }
+.fg .sheet-title { font-family: var(--fg-hud); font-size: 13px; letter-spacing: 0.16em; margin-bottom: 14px; display: flex; justify-content: space-between; }
+.fg .search { width: 100%; background: var(--fg-bg3); border: 1px solid var(--fg-border); border-radius: 10px; padding: 12px; font-size: 16px; margin-bottom: 10px; outline: none; }
+.fg .search:focus { border-color: #555; }
+.fg .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 6px; scrollbar-width: none; }
+.fg .chips button { flex-shrink: 0; font-size: 12px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--fg-border); color: #999; }
+.fg .chips button.active { background: #fff; color: #000; border-color: #fff; }
+.fg .pick { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 4px; border-bottom: 1px solid var(--fg-border); text-align: left; }
+.fg .pick b { font-family: var(--fg-ui); font-weight: 600; font-size: 15px; display: block; }
+.fg .pick span { font-size: 11px; color: var(--fg-muted); }
+.fg .field { margin-bottom: 14px; }
+.fg .field label { display: block; font-family: var(--fg-hud); font-size: 9px; letter-spacing: 0.18em; color: var(--fg-muted); margin-bottom: 6px; }
+.fg .field input { width: 100%; background: var(--fg-bg3); border: 1px solid var(--fg-border); border-radius: 10px; padding: 12px; font-size: 16px; outline: none; }
+
+.fg .sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+.fg .sum-grid div { background: var(--fg-bg2); border-radius: 10px; padding: 10px; text-align: center; }
+.fg .sum-grid b { display: block; font-size: 20px; }
+.fg .sum-grid span { font-family: var(--fg-hud); font-size: 8px; letter-spacing: 0.14em; color: var(--fg-muted); }
+.fg .xp-big { font-family: var(--fg-hud); font-size: 26px; font-weight: 900; color: var(--fg-xp); text-align: center; margin: 6px 0 2px; }
+.fg .beltup { background: #1a1408; border: 1px solid #3d2e10; border-radius: 12px; padding: 12px; margin-top: 10px; font-family: var(--fg-ui); font-size: 14px; }
+.fg .empty { text-align: center; color: var(--fg-muted); padding: 30px 10px; font-size: 13px; line-height: 1.6; }

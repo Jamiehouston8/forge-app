@@ -10,7 +10,8 @@
 <link rel="manifest" href="manifest.json"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>FORGE</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="gym/gym.css"/>
 <style>
 :root {
   --bg:    #0a0a0a;
@@ -636,6 +637,7 @@ input:focus,textarea:focus{border-color:#fff;}
   <div class="bar-nav">
     <button class="nav-btn active" onclick="showPage('home')">Home</button>
     <button class="nav-btn" onclick="showPage('health')">Health</button>
+    <button class="nav-btn" id="nav-gym" onclick="showPage('gym')" style="display:none;">Gym</button>
     <button class="nav-btn" onclick="showPage('hustles')">Work</button>
     <button class="nav-btn" onclick="showPage('journal')">Journal</button>
     <button class="nav-btn" onclick="showPage('mentor')">AI Mentor</button>
@@ -1569,6 +1571,9 @@ input:focus,textarea:focus{border-color:#fff;}
   </div>
 </div>
 
+<script src="gym/exercises.js"></script>
+<script src="gym/bodymap.js"></script>
+<script src="gym/gym.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -1813,7 +1818,7 @@ async function checkSubscription(){
   }
 }
 
-async function startApp(){renderPrivacyToggle();updateNotifBadge();
+async function startApp(){renderPrivacyToggle();updateNotifBadge();mountGym();
   checkMobile();
   renderChecklist('goals-list');renderChecklist('nonneg-list');renderChecklist('longterm-list');renderChecklist('weekly-targets-list');
   updateStatRow();renderXP();renderHealth();updateCalorieDisplay();renderLog();renderHustleStats();
@@ -2202,7 +2207,38 @@ let tt=null;
 function toast(msg,pos,col){const el=document.getElementById('xp-toast');el.textContent=msg;el.style.color=col||(pos?'#fff':'#666');el.style.borderColor=col||(pos?'#333':'#222');el.classList.add('show');if(tt)clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2400);}
 
 // NAV
+// Gym section (gym/gym.js). Data lives on the synced state as state.gym.
+// Beta until the Forge 2.0 launch (1 Nov): hidden unless this device has opted
+// in by visiting forges.html?beta=gym once. At launch, set GYM_LAUNCHED=true.
+const GYM_LAUNCHED=false;
+const GYM_ENABLED=(function(){
+  if(GYM_LAUNCHED)return true;
+  try{
+    if(/[?&]beta=gym\b/.test(location.search))localStorage.setItem('forge_beta_gym','1');
+    if(/[?&]beta=off\b/.test(location.search))localStorage.removeItem('forge_beta_gym');
+    return localStorage.getItem('forge_beta_gym')==='1';
+  }catch(e){return false;}
+})();
+let gymMounted=false;
+function mountGym(){
+  if(typeof ForgeGym==='undefined'||!GYM_ENABLED)return;
+  const navGym=document.getElementById('nav-gym');
+  if(navGym)navGym.style.display='';
+  if(gymMounted){ForgeGym.refresh();return;}
+  const el=document.getElementById('gym-root');
+  if(!el)return;
+  ForgeGym.mount(el,{
+    get:()=>state&&state.gym,
+    put:d=>{state.gym=d;save();},
+    toast:m=>toast(m,true),
+    awardXP:(n,reason)=>awardXP(n,reason),
+  });
+  gymMounted=true;
+}
+
 function showPage(name){
+  if(name==='gym'&&!GYM_ENABLED)name='home';
+  if(name==='gym'&&gymMounted)ForgeGym.render();
   if(name==='leaderboard') setTimeout(loadLeaderboard, 50);
   if(name==='selfimprove') setTimeout(initRoutineOnCalendar, 300);
   const target=document.getElementById('page-'+name);
@@ -2516,7 +2552,7 @@ Non-negotiables: ${nnDone}/5 — ${nnCtx}
 Long-term goals: ${ltCtx||'none set'}
 Side hustles: ${hustleCtx||'none'}
 Sleep: ${state.health.sleep?state.health.sleep+'h':'not logged'} | Steps: ${state.health.steps?state.health.steps.toLocaleString():'not logged'}
-Time of day: ${timeOfDay}
+${GYM_ENABLED&&typeof ForgeGym!=='undefined'?'Gym: '+ForgeGym.mentorSummary()+'\n':''}Time of day: ${timeOfDay}
 
 ${momentumState}
 ${patternNote}
@@ -6013,6 +6049,9 @@ async function declineFriendRequest(requestId){
 </script>
 
 <!-- LEADERBOARD PAGE -->
+<!-- ═══ GYM (Forge 2.0) — rendered by gym/gym.js ═══ -->
+<div id="page-gym" class="page"><div id="gym-root" class="fg-root"></div></div>
+
 <div id="page-leaderboard" class="page">
 <style>
 #page-leaderboard{background:#080808;min-height:100vh;padding-bottom:40px;}
