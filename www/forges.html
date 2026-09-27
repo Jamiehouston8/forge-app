@@ -1518,6 +1518,25 @@ input:focus,textarea:focus{border-color:#fff;}
       </div>
     </div>
 
+    <!-- Delete account (App Store guideline 5.1.1(v)) -->
+    <div id="delete-account-box" style="border:1px solid #3a1414;margin-top:8px;">
+      <div style="padding:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <div>
+          <div style="font-size:12px;color:#ff6b6b;">Delete Account</div>
+          <div style="font-size:10px;color:#444;margin-top:2px;">Permanently deletes your account and all your data. This can't be undone.</div>
+        </div>
+        <button onclick="document.getElementById('delete-account-confirm').style.display='block'" style="background:transparent;border:1px solid #ff6b6b;color:#ff6b6b;font-family:var(--font-hud);font-size:9px;letter-spacing:0.12em;padding:8px 16px;cursor:pointer;white-space:nowrap;">Delete</button>
+      </div>
+      <div id="delete-account-confirm" style="display:none;padding:0 16px 16px;">
+        <div style="font-size:10px;color:#888;margin-bottom:8px;">Type DELETE to confirm.</div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="delete-account-input" autocomplete="off" autocapitalize="characters" placeholder="DELETE" style="flex:1;"/>
+          <button id="delete-account-go" onclick="deleteAccount()" style="background:#ff6b6b;border:none;color:#000;font-family:var(--font-hud);font-size:9px;letter-spacing:0.12em;padding:8px 16px;cursor:pointer;">Delete forever</button>
+        </div>
+        <div id="delete-account-msg" style="font-size:10px;color:#ff6b6b;margin-top:8px;"></div>
+      </div>
+    </div>
+
     <!-- ADD FRIEND -->
     <div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;padding:16px 20px;margin-top:16px;">
       <div style="font-family:var(--font-hud);font-size:10px;color:#fff;letter-spacing:0.1em;margin-bottom:12px;">ADD A FRIEND</div>
@@ -3661,6 +3680,25 @@ function doLogout(){
   document.getElementById('auth-screen').style.opacity='1';
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   log('signed out');
+}
+
+async function deleteAccount(){
+  const msg=document.getElementById('delete-account-msg');
+  const btn=document.getElementById('delete-account-go');
+  if(document.getElementById('delete-account-input').value.trim().toUpperCase()!=='DELETE'){msg.textContent='Type DELETE to confirm.';return;}
+  if(isGuest){try{localStorage.clear();}catch(e){}doLogout();return;}
+  btn.disabled=true;btn.textContent='Deleting…';msg.textContent='';
+  try{
+    const r=await fetch(SB_URL+'/functions/v1/delete-account',{method:'POST',headers:{...SBH,'Authorization':'Bearer '+userToken}});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||!d.ok)throw new Error(d.error||'Could not delete your account');
+    try{localStorage.clear();}catch(e){}
+    doLogout();
+    toast('Your account has been deleted',true);
+  }catch(e){
+    msg.textContent=e.message+'. If this keeps happening, email jamiehouston484@gmail.com.';
+    btn.disabled=false;btn.textContent='Delete forever';
+  }
 }
 
 // ══════════════════════════
