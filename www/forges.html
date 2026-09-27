@@ -1591,6 +1591,7 @@ input:focus,textarea:focus{border-color:#fff;}
 <script src="gym/bodymap.js"></script>
 <script src="gym/gym.js"></script>
 <script src="interests/interests.js"></script>
+<script src="share/share.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -2274,6 +2275,7 @@ function mountGym(){
     put:d=>{state.gym=d;save();},
     toast:m=>toast(m,true),
     awardXP:(n,reason)=>awardXP(n,reason),
+    share:v=>ForgeShare.open(v),
     // Gym > Recovery logs sleep and water into the same daily state.health
     // the home screen and the mentor already read.
     health:{
@@ -2312,6 +2314,7 @@ function mountInterests(){
     toast:m=>toast(m,true),
     awardXP:(n,reason)=>awardXP(n,reason),
     ai:aiText,
+    share:v=>ForgeShare.open(v),
   });
   interestsMounted=true;
 }

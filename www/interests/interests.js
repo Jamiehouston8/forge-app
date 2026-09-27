@@ -8,6 +8,7 @@
 //   host.toast(msg)
 //   host.awardXP(n, reason)       → optional
 //   host.ai(prompt, maxTokens)    → optional; resolves to the model's text reply
+//   host.share(variants)          → optional; opens share cards (share/share.js)
 //
 // Cover art comes from Apple's iTunes Search API (music, TV, books, podcasts;
 // free, no key, CORS-enabled). Films come from Wikipedia search (title + year);
@@ -256,6 +257,7 @@ const ForgeInterests = (function () {
           <div class="bar"><div style="width:${Math.round(L.progress * 100)}%;background:var(--fg-xp)"></div></div>
           <div class="small muted" style="margin:6px 0 10px">${L.lvl >= 10 ? 'Max level. Mastery.' : `${L.toNext < 1 ? Math.ceil(L.toNext * 60) + ' min' : L.toNext.toFixed(1) + ' h'} to level ${L.lvl + 1}`}</div>
           <div class="fi-log">${[15, 30, 60].map(m => `<button data-practice="${s.id},${m}">+${m < 60 ? m + 'm' : '1h'}</button>`).join('')}</div>
+          ${host.share && L.lvl >= 2 ? `<button class="link small" style="margin-top:10px" data-shareskill="${s.id}">Share level ${L.lvl} ↗</button>` : ''}
         </div>`;
       }).join('') : '<div class="empty">Add something you\'re getting better at, like guitar, coding or cooking. Log practice and watch it level up from 1 to 10.</div>'}`;
   }
@@ -276,7 +278,7 @@ const ForgeInterests = (function () {
             <button class="ex-x" data-rmquest="${q.id}" aria-label="Remove">×</button></div>
           ${total ? `<div class="bar" style="margin:8px 0"><div style="width:${Math.round(done / total * 100)}%;background:var(--fg-good)"></div></div>
             <div class="fi-steps">${q.steps.map((s, i) => `<button class="fi-step ${s.done ? 'done' : ''}" data-step="${q.id},${i}"><i>${s.done ? '✓' : i + 1}</i><div><b>${esc(s.t)}</b>${s.d ? `<span>${esc(s.d)}</span>` : ''}</div></button>`).join('')}</div>
-            ${done === total ? '<div class="beltup">🏆 Quest complete. Pick your next topic.</div>' : `<div class="small muted" style="margin-top:8px">+${XP.step} XP per step · +${XP.questDone} XP when you finish</div>`}`
+            ${done === total ? `<div class="beltup">🏆 Quest complete. Pick your next topic.${host.share ? ` <button class="link" data-sharequest="${q.id}" style="margin-left:6px">Share ↗</button>` : ''}</div>` : `<div class="small muted" style="margin-top:8px">+${XP.step} XP per step · +${XP.questDone} XP when you finish</div>`}`
           : `<button class="btn btn-ghost" style="margin-top:10px" data-path="${q.id}" ${busy[q.id] ? 'disabled' : ''}>${busy[q.id] ? 'Building your path…' : '✨ Generate learning path'}</button>`}
         </div>`;
       }).join('') : '<div class="empty">Pick something to learn. Forge builds a step-by-step path, and every step you tick off earns XP.</div>'}`;
@@ -375,6 +377,16 @@ const ForgeInterests = (function () {
     if (d.level) { root.dataset.level = d.level; root.querySelectorAll('[data-level]').forEach(b => b.classList.toggle('active', b.dataset.level === d.level)); return; }
     if (d.path) { const q = D.learn.find(x => x.id === d.path); if (q) generatePath(q); return; }
     if (d.step) { const [id, i] = d.step.split(','); return toggleStep(id, +i); }
+    if (d.sharequest) {
+      const q = D.learn.find(x => x.id === d.sharequest);
+      if (q && host.share) host.share([{ type: 'quest', label: 'Quest', data: { topic: q.topic, level: q.level, steps: q.steps.map(s => s.t) } }]);
+      return;
+    }
+    if (d.shareskill) {
+      const s = D.skills.find(x => x.id === d.shareskill);
+      if (s && host.share) host.share([{ type: 'skill', label: 'Level', data: { name: s.name, level: skillLevel(s.minutes).lvl, hours: (Math.round(s.minutes / 6) / 10).toString() } }]);
+      return;
+    }
     if (d.rmquest) { if (!confirm('Remove this quest?')) return; D.learn = D.learn.filter(x => x.id !== d.rmquest); save(); return render(); }
     if (d.discover) { tab = 'discover'; return discover(d.discover); }
     if (d.addrec) { const r = D.discover && D.discover.items[+d.addrec]; if (r && addToShelf(r)) render(); return; }

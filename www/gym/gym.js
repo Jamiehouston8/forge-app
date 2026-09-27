@@ -7,6 +7,7 @@
 //   host.toast(msg)         → show a short message
 //   host.awardXP(n, reason) → optional; Forge adds it to the main XP/level
 //   host.dev                → optional; shows prototype tools (demo data)
+//   host.share(variants)    → optional; opens share cards (see share/share.js)
 //   host.health             → optional { get() → {sleep, water}, set({sleep?, water?}) }
 //                             Forge passes its daily state.health so the home
 //                             screen and mentor see what's logged in Recovery.
@@ -18,6 +19,7 @@ const ForgeGym = (function () {
 
   let host, root, sheet, G;
   let restTimer = null, clockTimer = null, restEnd = 0, restTotal = 0;
+  let lastSummary = null;
   let tab = 'train', bodyMode = 'rank', selectedMuscle = null, pickerFilter = 'all', sleepCustomOpen = false;
 
   function fresh() { return { bodyweight: 80, rest: 90, xp: 0, workouts: [], active: null, weights: [], recovery: {} }; }
@@ -208,6 +210,7 @@ const ForgeGym = (function () {
       const a = before[m], b = muscleRank(m);
       if (b && (!a || b.index > a.index)) beltUps.push({ m, belt: b.belt });
     }
+    lastSummary = { w, sets, prs, beltUps };
     showSummary(w, sets, prs, beltUps);
     render();
     if (host.awardXP) host.awardXP(w.xp, 'Workout complete');
@@ -423,6 +426,7 @@ const ForgeGym = (function () {
           <div class="bar"><div style="width:${r ? Math.round(r.progress * 100) : 0}%;background:${r ? (r.next ? r.next.color : r.belt.color) : '#333'}"></div></div>
         </div>`).join('')}
       </div>
+      ${host.share && o ? '<button class="btn btn-ghost" style="margin-top:12px" data-act="share-ranks">Share my rank ↗</button>' : ''}
       <div class="small muted" style="margin-top:12px;line-height:1.6">Ranks compare your estimated one-rep max to your bodyweight (${fmtKg(G.bodyweight)}). Change it in gym settings ⚙.</div>`;
   }
 
@@ -507,6 +511,41 @@ const ForgeGym = (function () {
     }).join('');
   }
 
+  // ───────── share cards ─────────
+  function shareWorkout() {
+    if (!host.share || !lastSummary) return;
+    const { w, sets, prs, beltUps } = lastSummary;
+    const variants = [];
+    for (const b of beltUps) {
+      const r = muscleRank(b.m);
+      variants.push({ type: 'belt', label: MUSCLES[b.m] + ' belt', data: { muscle: b.m, muscleName: MUSCLES[b.m], belt: b.belt, lift: r ? EX[r.exId].name : '', e1rm: r ? r.e1rm : 0 } });
+    }
+    for (const e of w.exercises) {
+      for (const s of e.sets.filter(x => x.pr).slice(0, 1)) {
+        const v = setE1rm(e.id, s);
+        const b = beltFor(e.id, v);
+        variants.push({ type: 'pr', label: 'PR · ' + EX[e.id].name, data: { exercise: EX[e.id].name, weight: Number(s.w) || 0, reps: Number(s.r) || 0, bw: !!EX[e.id].bw, e1rm: v, belt: b ? b.belt : null } });
+      }
+    }
+    const vol = w.exercises.reduce((a, e) => a + e.sets.reduce((b, s) => b + setLoad(e.id, s) * s.r, 0), 0);
+    variants.push({ type: 'workout', label: 'Workout', data: {
+      name: w.name, date: new Date(w.end).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
+      ms: w.end - w.start, sets, volume: vol, xp: w.xp, prs,
+      lifts: w.exercises.map(e => {
+        const top = e.sets.reduce((a, s) => (setE1rm(e.id, s) > setE1rm(e.id, a) ? s : a));
+        return { name: EX[e.id].name, best: (EX[e.id].bw && !Number(top.w) ? '' : (Number(top.w) || 0) + 'kg × ') + top.r + (EX[e.id].bw && !Number(top.w) ? ' reps' : ''), pr: e.sets.some(s => s.pr) };
+      }),
+    } });
+    host.share(variants);
+  }
+  function shareRanks() {
+    if (!host.share) return;
+    const o = overallRank();
+    const colors = {};
+    for (const m of Object.keys(MUSCLES)) { const r = muscleRank(m); if (r) colors[m] = r.belt.name === 'Black' ? '#f2f2f2' : r.belt.color; }
+    host.share([{ type: 'ranks', label: 'My rank', data: { overall: o ? o.belt : null, ranked: o ? o.ranked : 0, total: Object.keys(MUSCLES).length, colors } }]);
+  }
+
   // ───────── sheets (picker / settings / summary) ─────────
   function openSheet(html) { sheet.querySelector('.sheet-inner').innerHTML = html; sheet.classList.remove('hidden'); }
   function closeSheet() { sheet.classList.add('hidden'); }
@@ -546,7 +585,8 @@ const ForgeGym = (function () {
       <div class="sum-grid"><div><b>${fmtDur(w.end - w.start)}</b><span>TIME</span></div><div><b>${sets}</b><span>SETS</span></div><div><b>${Math.round(vol).toLocaleString()}</b><span>KG MOVED</span></div></div>
       ${beltUps.map(b => `<div class="beltup">🥋 <b>${MUSCLES[b.m]}</b> is now ${b.belt.name} belt.</div>`).join('')}
       ${prs ? `<div class="card" style="margin-top:10px">${w.exercises.flatMap(e => e.sets.filter(s => s.pr).map(s => `<div class="small">★ PR · ${esc(EX[e.id].name)} ${Number(s.w) || 0}kg × ${s.r}</div>`)).join('')}</div>` : ''}
-      <button class="btn btn-primary" style="margin-top:16px" data-act="close">Done</button>`);
+      ${host.share ? `<button class="btn btn-primary" style="margin-top:16px" data-act="share-workout">Share ${beltUps.length ? 'your belt' : prs ? 'your PR' : 'workout'} ↗</button>` : ''}
+      <button class="btn ${host.share ? 'btn-ghost' : 'btn-primary'}" style="margin-top:${host.share ? 10 : 16}px" data-act="close">Done</button>`);
   }
 
   // Five weeks of push/pull/legs with steady progression (prototype testing only).
@@ -607,6 +647,8 @@ const ForgeGym = (function () {
     }
     switch (d.act) {
       case 'settings': return openSettings();
+      case 'share-workout': return shareWorkout();
+      case 'share-ranks': return shareRanks();
       case 'sleep-custom':
         sleepCustomOpen = !sleepCustomOpen; render();
         if (sleepCustomOpen) { const i = $('.sleep-in'); if (i) i.focus(); }

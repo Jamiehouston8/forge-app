@@ -22,6 +22,7 @@
 <script src="../../www/gym/exercises.js"></script>
 <script src="../../www/gym/bodymap.js"></script>
 <script src="../../www/gym/gym.js"></script>
+<script src="../../www/share/share.js"></script>
 <script>
   const KEY = 'forge_gym_v1';
   function toast(msg) {
@@ -33,6 +34,7 @@
     get: () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } },
     put: d => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} },
     toast,
+    share: v => ForgeShare.open(v),
     dev: true,
   });
   // #demo loads demo data (via the settings sheet's button); #body etc. opens a tab.
