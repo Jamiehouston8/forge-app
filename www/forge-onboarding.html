@@ -1810,6 +1810,29 @@ async function completePayment(){
     await saveUsername(createdUserId, createdUserToken, pickedName);
   }
 
+  // iOS/Android apps can't sell a digital subscription through Stripe (App
+  // Store guideline 3.1.1, Google Play's equivalent), so the store builds skip
+  // checkout: sign the new account in and go straight into the app.
+  if(IS_NATIVE_APP){
+    if(!createdUserId || !createdUserToken){
+      if(errEl) errEl.textContent = 'Account created! Check your email to confirm, then log in.';
+      btn.textContent = originalText;
+      btn.style.opacity = '1';
+      btn.disabled = false;
+      return;
+    }
+    try {
+      localStorage.setItem('forge_generated_plan', JSON.stringify(generatedPlan));
+      localStorage.setItem('forge_session', JSON.stringify({
+        access_token: createdUserToken,
+        user: { id: createdUserId, email: email },
+        expires_at: Date.now() / 1000 + 3600
+      }));
+    } catch(e){}
+    window.location.href = 'forges.html?onboarded=1';
+    return;
+  }
+
   btn.textContent = 'Loading...';
   btn.style.opacity = '0.6';
   btn.disabled = true;
@@ -1885,6 +1908,27 @@ function checkBypassCode(){
 
 
 // ── INIT ──
+// Running inside the Capacitor iOS/Android app (not the website)? Capacitor
+// injects window.Capacitor; the protocol/host checks are a fallback.
+var IS_NATIVE_APP = !!(
+  (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) ||
+  location.protocol === 'capacitor:' ||
+  (location.protocol === 'https:' && location.hostname === 'localhost' && !location.port)
+);
+function applyNativeAppMode(){
+  if(!IS_NATIVE_APP) return;
+  // Store builds: no plans, prices, Stripe or access codes on the signup screen.
+  document.querySelectorAll('.plan-card, #bypass-section, #pay-stripe-note').forEach(function(el){ el.style.display = 'none'; });
+  var payKicker = document.getElementById('pay-kicker');
+  if(payKicker) payKicker.textContent = 'LAST STEP';
+  var paySub = document.getElementById('pay-subtitle');
+  if(paySub) paySub.textContent = 'Create your account to save your plan.';
+  var payBtn = document.getElementById('pay-btn');
+  if(payBtn) payBtn.textContent = 'Create Account →';
+}
+// The payment screen's markup comes after this script, so wait for the DOM.
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyNativeAppMode);
+else applyNativeAppMode();
 // Make splash visible immediately
 var splashEl = document.getElementById('screen-splash');
 if(splashEl){
@@ -2305,9 +2349,9 @@ if(splashEl){
 <!-- PAYMENT / SUBSCRIPTION -->
 <div class="screen q-screen" id="screen-payment" style="padding-bottom:40px;">
   <div style="text-align:center;margin:8px 0 28px;">
-    <div style="font-family:'Orbitron',monospace;font-size:11px;color:#555;letter-spacing:0.3em;margin-bottom:10px;">UNLOCK FORGE</div>
+    <div style="font-family:'Orbitron',monospace;font-size:11px;color:#555;letter-spacing:0.3em;margin-bottom:10px;" id="pay-kicker">UNLOCK FORGE</div>
     <div style="font-family:'Orbitron',monospace;font-size:22px;font-weight:900;color:#fff;margin-bottom:8px;">Start building today.</div>
-    <div style="font-family:'Inter',sans-serif;font-size:14px;color:#555;line-height:1.6;">Cancel anytime. No commitment.</div>
+    <div style="font-family:'Inter',sans-serif;font-size:14px;color:#555;line-height:1.6;" id="pay-subtitle">Cancel anytime. No commitment.</div>
   </div>
 
   <!-- ACCOUNT CREATION ON PAYMENT PAGE -->
@@ -2370,7 +2414,7 @@ if(splashEl){
   </div>
 
   <!-- BYPASS CODE (admin only) -->
-  <div style="margin-bottom:16px;">
+  <div style="margin-bottom:16px;" id="bypass-section">
     <div style="display:flex;gap:8px;align-items:center;">
       <input type="text" id="bypass-input" placeholder="Have an access code?" maxlength="20"
         style="flex:1;background:#0a0a0a;border:1px solid #1a1a1a;border-radius:10px;padding:10px 14px;color:#666;font-family:Inter,sans-serif;font-size:13px;outline:none;"
@@ -2394,7 +2438,7 @@ if(splashEl){
 
   <div style="padding:8px 0 0;">
     <button class="btn-continue ready" id="pay-btn" style="position:static;width:100%;" onclick="completePayment()">Start 7-Day Free Trial →</button>
-    <div style="text-align:center;font-family:Inter,sans-serif;font-size:11px;color:#444;margin-top:14px;line-height:1.6;">Secure payment via Stripe. Cancel anytime in settings.<br>You won&#39;t be charged until your trial ends.</div>
+    <div id="pay-stripe-note" style="text-align:center;font-family:Inter,sans-serif;font-size:11px;color:#444;margin-top:14px;line-height:1.6;">Secure payment via Stripe. Cancel anytime in settings.<br>You won&#39;t be charged until your trial ends.</div>
     <div style="text-align:center;margin-top:12px;">
       <a href="privacy.html" style="font-family:'Orbitron',monospace;font-size:9px;color:#333;text-decoration:none;letter-spacing:0.1em;border-bottom:1px solid #222;padding-bottom:1px;">Privacy Policy &amp; Terms</a>
     </div>
