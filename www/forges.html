@@ -1573,6 +1573,75 @@ input:focus,textarea:focus{border-color:#fff;}
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
 const SBH={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+
+// ══════════════════════════
+// AI CONSENT (App Store guideline 5.1.2(i))
+// ══════════════════════════
+// Every AI feature goes through the claude-proxy edge function, which sends the
+// user's data to Anthropic. Nothing is sent until the user has agreed once.
+// Consent lives on the synced state (per account) with a localStorage copy so
+// guests and not-yet-loaded sessions are covered too.
+let aiConsentDeclined=false;   // "Not now" this session: background AI stays quiet
+let aiConsentPrompt=null;      // one shared prompt while it's on screen
+function hasAIConsent(){
+  if(typeof state!=='undefined'&&state&&state.aiConsent)return true;
+  try{return localStorage.getItem('forge_ai_consent')==='yes';}catch(e){return false;}
+}
+function askAIConsent(){
+  if(aiConsentPrompt)return aiConsentPrompt;
+  aiConsentPrompt=new Promise(resolve=>{
+    const ov=document.createElement('div');
+    ov.id='ai-consent';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    ov.innerHTML=`<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:16px;max-width:420px;width:100%;padding:24px;font-family:Inter,-apple-system,sans-serif;">
+      <div style="font-family:var(--font-hud);font-size:10px;color:#888;letter-spacing:0.2em;margin-bottom:10px;">AI MENTOR</div>
+      <div style="font-size:18px;color:#fff;font-weight:700;margin-bottom:12px;">Allow Forge to use AI?</div>
+      <div style="font-size:13px;color:#aaa;line-height:1.6;">
+        Forge's AI features, like the mentor and daily brief, are powered by <strong style="color:#fff;">Claude, an AI model made by Anthropic</strong>.
+        To give you personal advice, Forge sends Anthropic:
+        <ul style="margin:8px 0 8px 18px;padding:0;">
+          <li>the messages you write to the mentor</li>
+          <li>your goals, habits, streaks, XP and the health and progress info you've logged</li>
+        </ul>
+        Anthropic uses it only to generate replies. It isn't sold or used for ads.
+        See our <a href="privacy.html" style="color:#fff;">Privacy Policy</a>.
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button id="ai-consent-no" style="flex:1;background:transparent;border:1px solid #333;color:#aaa;padding:12px;border-radius:10px;font-size:13px;cursor:pointer;">Not now</button>
+        <button id="ai-consent-yes" style="flex:1;background:#fff;border:none;color:#000;padding:12px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Allow</button>
+      </div>
+      <div style="font-size:11px;color:#555;margin-top:12px;text-align:center;">Without it, the rest of Forge still works.</div>
+    </div>`;
+    document.body.appendChild(ov);
+    const done=ok=>{
+      ov.remove();aiConsentPrompt=null;
+      if(ok){
+        aiConsentDeclined=false;
+        try{localStorage.setItem('forge_ai_consent','yes');}catch(e){}
+        if(typeof state!=='undefined'&&state){state.aiConsent=new Date().toISOString();save();}
+      }else aiConsentDeclined=true;
+      resolve(ok);
+    };
+    ov.querySelector('#ai-consent-yes').onclick=()=>done(true);
+    ov.querySelector('#ai-consent-no').onclick=()=>done(false);
+  });
+  return aiConsentPrompt;
+}
+(function(){
+  const realFetch=window.fetch.bind(window);
+  window.fetch=async function(input,init){
+    const url=typeof input==='string'?input:(input&&input.url)||'';
+    if(url.indexOf('/functions/v1/claude-proxy')!==-1&&!hasAIConsent()){
+      const ok=aiConsentDeclined?false:await askAIConsent();
+      if(!ok){
+        const msg="AI is off. Tap Allow when asked to use Forge's AI features.";
+        return new Response(JSON.stringify({error:{message:msg},content:[{type:'text',text:msg}]}),
+          {status:403,headers:{'Content-Type':'application/json'}});
+      }
+    }
+    return realFetch(input,init);
+  };
+})();
 const TODAY=new Date().toDateString();
 
 let state=null,saveTimer=null,currentUser=null,isGuest=false,userToken=null;
@@ -2616,6 +2685,7 @@ async function sendMentorMsg(){
   const text=input.value.trim();
   if(!text)return;
   input.value='';
+  aiConsentDeclined=false; // typing to the mentor is an explicit ask, so prompt again
   state.mentorHistory.push({role:'user',content:text});
   box.innerHTML+=`<div class="msg user">${esc(text)}</div>`;
   const loader=document.createElement('div');
