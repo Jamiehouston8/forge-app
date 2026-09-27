@@ -1564,6 +1564,19 @@ input:focus,textarea:focus{border-color:#fff;}
       </div>
     </div>
 
+    <!-- FORGE 2.0 BETA TOGGLE (hidden once 2.0 launches) -->
+    <div id="beta-toggle-box" style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;padding:16px 20px;margin-top:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-family:var(--font-hud);font-size:10px;color:#fff;letter-spacing:0.1em;margin-bottom:4px;">FORGE 2.0 BETA</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:#555;line-height:1.4;">Try new features early, starting with the Gym. They may still change. Applies to this device.</div>
+        </div>
+        <div onclick="toggleBeta()" id="beta-toggle" style="width:44px;height:24px;border-radius:12px;background:#1a1a1a;border:1px solid #333;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0;margin-left:16px;">
+          <div id="beta-toggle-knob" style="width:18px;height:18px;border-radius:50%;background:#555;position:absolute;top:2px;left:2px;transition:all 0.2s;"></div>
+        </div>
+      </div>
+    </div>
+
     <div style="text-align:center;padding:24px 0 8px;border-top:1px solid #1a1a1a;margin-top:16px;">
       <a href="privacy.html" style="font-family:var(--font-hud);font-size:9px;color:#333;text-decoration:none;letter-spacing:0.15em;border-bottom:1px solid #1a1a1a;padding-bottom:2px;">PRIVACY POLICY &amp; TERMS</a>
     </div>
@@ -1818,7 +1831,7 @@ async function checkSubscription(){
   }
 }
 
-async function startApp(){renderPrivacyToggle();updateNotifBadge();mountGym();
+async function startApp(){renderPrivacyToggle();renderBetaToggle();updateNotifBadge();mountGym();
   checkMobile();
   renderChecklist('goals-list');renderChecklist('nonneg-list');renderChecklist('longterm-list');renderChecklist('weekly-targets-list');
   updateStatRow();renderXP();renderHealth();updateCalorieDisplay();renderLog();renderHustleStats();
@@ -2207,18 +2220,43 @@ let tt=null;
 function toast(msg,pos,col){const el=document.getElementById('xp-toast');el.textContent=msg;el.style.color=col||(pos?'#fff':'#666');el.style.borderColor=col||(pos?'#333':'#222');el.classList.add('show');if(tt)clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2400);}
 
 // NAV
-// Gym section (gym/gym.js). Data lives on the synced state as state.gym.
-// Beta until the Forge 2.0 launch (1 Nov): hidden unless this device has opted
-// in by visiting forges.html?beta=gym once. At launch, set GYM_LAUNCHED=true.
-const GYM_LAUNCHED=false;
-const GYM_ENABLED=(function(){
-  if(GYM_LAUNCHED)return true;
+// ══════════════════════════
+// FORGE 2.0 BETA
+// ══════════════════════════
+// New 2.0 features stay hidden until launch (1 Nov) unless this device has
+// opted in: Account > "Forge 2.0 beta" toggle, or visiting ?beta=on (?beta=gym
+// still works; ?beta=off opts out). Gate every 2.0 feature on BETA_ENABLED.
+// At launch set V2_LAUNCHED=true and the toggle disappears.
+const V2_LAUNCHED=false;
+const BETA_ENABLED=(function(){
+  if(V2_LAUNCHED)return true;
   try{
-    if(/[?&]beta=gym\b/.test(location.search))localStorage.setItem('forge_beta_gym','1');
-    if(/[?&]beta=off\b/.test(location.search))localStorage.removeItem('forge_beta_gym');
-    return localStorage.getItem('forge_beta_gym')==='1';
+    if(/[?&]beta=(on|gym)\b/.test(location.search))localStorage.setItem('forge_beta','1');
+    if(/[?&]beta=off\b/.test(location.search))localStorage.removeItem('forge_beta');
+    if(localStorage.getItem('forge_beta_gym')==='1'){localStorage.setItem('forge_beta','1');localStorage.removeItem('forge_beta_gym');}
+    return localStorage.getItem('forge_beta')==='1';
   }catch(e){return false;}
 })();
+function toggleBeta(){
+  try{
+    if(BETA_ENABLED)localStorage.removeItem('forge_beta');
+    else localStorage.setItem('forge_beta','1');
+  }catch(e){toast('Could not change beta setting',false);return;}
+  toast(BETA_ENABLED?'Beta off, reloading…':'Beta on, reloading…',true);
+  setTimeout(()=>location.reload(),600);
+}
+function renderBetaToggle(){
+  const box=document.getElementById('beta-toggle-box');
+  if(box&&V2_LAUNCHED){box.style.display='none';return;}
+  const t=document.getElementById('beta-toggle'),k=document.getElementById('beta-toggle-knob');
+  if(!t||!k)return;
+  t.style.background=BETA_ENABLED?'#fff':'#1a1a1a';
+  k.style.background=BETA_ENABLED?'#000':'#555';
+  k.style.left=BETA_ENABLED?'22px':'2px';
+}
+const GYM_ENABLED=BETA_ENABLED;
+
+// Gym section (gym/gym.js). Data lives on the synced state as state.gym.
 let gymMounted=false;
 function mountGym(){
   if(typeof ForgeGym==='undefined'||!GYM_ENABLED)return;
