@@ -18,7 +18,7 @@ const ForgeGym = (function () {
 
   let host, root, sheet, G;
   let restTimer = null, clockTimer = null, restEnd = 0, restTotal = 0;
-  let tab = 'train', bodyMode = 'rank', selectedMuscle = null, pickerFilter = 'all';
+  let tab = 'train', bodyMode = 'rank', selectedMuscle = null, pickerFilter = 'all', sleepCustomOpen = false;
 
   function fresh() { return { bodyweight: 80, rest: 90, xp: 0, workouts: [], active: null, weights: [], recovery: {} }; }
   function save() { host.put(G); }
@@ -453,7 +453,11 @@ const ForgeGym = (function () {
 
       <h2>SLEEP LAST NIGHT</h2>
       <div class="card">
-        <div class="pills">${[5, 6, 7, 8, 9, 10].map(h => `<button data-sleep="${h}" class="${today.sleep === h ? 'active' : ''}">${h}h${h === 10 ? '+' : ''}</button>`).join('')}</div>
+        <div class="pills">${[5, 6, 7, 8, 9].map(h => `<button data-sleep="${h}" class="${today.sleep === h ? 'active' : ''}">${h}h</button>`).join('')}${(() => {
+          const custom = today.sleep && ![5, 6, 7, 8, 9].includes(today.sleep);
+          return `<button data-act="sleep-custom" class="${custom || sleepCustomOpen ? 'active' : ''}">${custom ? today.sleep + 'h' : 'Custom'}</button>`;
+        })()}</div>
+        ${sleepCustomOpen ? `<div class="bw-log" style="margin-top:10px"><input class="sleep-in" inputmode="decimal" placeholder="Hours slept, e.g. 7.5" value="${today.sleep && ![5, 6, 7, 8, 9].includes(today.sleep) ? today.sleep : ''}"/><button class="btn btn-primary" data-act="sleep-save">Save</button></div>` : ''}
         <div class="sleep-bars">${nights.map(n => `<div><i style="height:${Math.min(100, n.h / 10 * 100)}%;background:${n.h >= 7 ? 'var(--fg-good)' : n.h ? 'var(--fg-pr)' : 'transparent'}"></i><span>${n.label}</span></div>`).join('')}</div>
         <div class="small muted">${avg !== null ? `7-day average <b style="color:#fff">${avg.toFixed(1)}h</b> · aim for 7–9h` : 'Tap your hours each morning to build your sleep history.'}</div>
       </div>
@@ -594,7 +598,7 @@ const ForgeGym = (function () {
     }
     if (d.mode) { bodyMode = d.mode; return render(); }
     if (d.m) { selectedMuscle = selectedMuscle === d.m ? null : d.m; return render(); }
-    if (d.sleep) return setRecovery({ sleep: Number(d.sleep) });
+    if (d.sleep) { sleepCustomOpen = false; return setRecovery({ sleep: Number(d.sleep) }); }
     if (d.water) return setRecovery({ water: Math.max(0, todayRecovery().water + Number(d.water)) });
     if (d.hist) { t.querySelector('.hist-body').classList.toggle('hidden'); return; }
     if (d.rest) {
@@ -603,6 +607,16 @@ const ForgeGym = (function () {
     }
     switch (d.act) {
       case 'settings': return openSettings();
+      case 'sleep-custom':
+        sleepCustomOpen = !sleepCustomOpen; render();
+        if (sleepCustomOpen) { const i = $('.sleep-in'); if (i) i.focus(); }
+        return;
+      case 'sleep-save': {
+        const h = parseFloat((($('.sleep-in') || {}).value || '').replace(',', '.'));
+        if (!(h >= 0 && h <= 16)) { host.toast('Enter hours between 0 and 16'); return; }
+        sleepCustomOpen = false;
+        return setRecovery({ sleep: Math.round(h * 4) / 4 });
+      }
       case 'log-weight': {
         const kg = parseFloat(($('.bw-in') || {}).value);
         if (!(kg > 25 && kg < 300)) { host.toast('Enter your weight in kg'); return; }
