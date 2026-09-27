@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>Forge Gym — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="gym.css"/>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div>
+      <div class="brand">FORGE <span>GYM</span></div>
+      <div class="sub" id="top-sub">Prototype</div>
+    </div>
+    <div class="top-right">
+      <div id="top-rank"></div>
+      <button class="icon-btn" id="btn-settings" aria-label="Settings">⚙</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="view-train" class="view active"></section>
+    <section id="view-body" class="view"></section>
+    <section id="view-ranks" class="view"></section>
+    <section id="view-history" class="view"></section>
+  </main>
+
+  <div id="rest" class="hidden">
+    <div class="rest-label">REST</div>
+    <div class="rest-time" id="rest-time">1:30</div>
+    <div class="rest-bar"><div id="rest-fill"></div></div>
+    <button data-rest="-15">−15</button>
+    <button data-rest="15">+15</button>
+    <button data-rest="skip">Skip</button>
+  </div>
+
+  <nav id="tabs">
+    <button data-tab="train" class="active"><span class="ti">▲</span>Train</button>
+    <button data-tab="body"><span class="ti">◆</span>Body</button>
+    <button data-tab="ranks"><span class="ti">★</span>Ranks</button>
+    <button data-tab="history"><span class="ti">≡</span>History</button>
+  </nav>
+</div>
+
+<div id="sheet" class="hidden"><div class="sheet-inner" id="sheet-inner"></div></div>
+<div id="toast"></div>
+
+<script src="exercises.js"></script>
+<script src="bodymap.js"></script>
+<script src="gym.js"></script>
+</body>
+</html>
