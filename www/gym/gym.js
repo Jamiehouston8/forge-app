@@ -745,7 +745,21 @@ const ForgeGym = (function () {
       (sleepAvg(7) !== null ? ` Sleep 7-day avg ${sleepAvg(7).toFixed(1)}h.` : '');
   }
 
+  // Last-7-days numbers for the weekly recap share card.
+  function weekStats() {
+    if (!G) return null;
+    const since = Date.now() - 7 * DAY;
+    const ws = G.workouts.filter(w => w.end > since);
+    let volume = 0, best = null;
+    for (const w of ws) for (const e of w.exercises) for (const s of e.sets) {
+      volume += setLoad(e.id, s) * (Number(s.r) || 0);
+      const v = setE1rm(e.id, s);
+      if (EX[e.id] && EX[e.id].std && (!best || v > best.v)) best = { v, text: `${EX[e.id].name} ${Number(s.w) || 0}kg × ${s.r}` };
+    }
+    return { workouts: ws.length, volume, bestLift: best ? best.text : '', sleepAvg: sleepAvg(7) };
+  }
+
   function openTab(name) { tab = name; render(); }
 
-  return { mount, refresh, mentorSummary, render, openTab };
+  return { mount, refresh, mentorSummary, render, openTab, weekStats };
 })();

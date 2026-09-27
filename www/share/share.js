@@ -235,6 +235,80 @@ const ForgeShare = (function () {
     },
   };
 
+  // ── main-app cards ──
+  CARDS.streak = async (ctx, d) => {
+    background(ctx, '#ff8c42');
+    kicker(ctx, 'STREAK', C.pr);
+    txt(ctx, String(d.days), W / 2, 820, { font: `900 440px ${HUD}`, align: 'center', color: C.text });
+    txt(ctx, 'DAYS IN A ROW', W / 2, 950, { font: `700 60px ${HUD}`, align: 'center', color: C.pr, spacing: 12 });
+    // last 14 days as dots, lit for the streak
+    const n = Math.min(14, d.days);
+    for (let i = 0; i < 14; i++) {
+      const x = W / 2 - 7 * 64 + i * 64 + 32;
+      ctx.beginPath(); ctx.arc(x, 1110, 20, 0, Math.PI * 2);
+      ctx.fillStyle = i >= 14 - n ? C.pr : 'rgba(255,255,255,0.1)'; ctx.fill();
+    }
+    if (d.line) wrap(ctx, d.line, W - 200, `600 48px ${UI}`, 3).forEach((l, i) => txt(ctx, l, W / 2, 1300 + i * 66, { font: `600 48px ${UI}`, align: 'center', color: '#d8d8d8' }));
+    if (d.best > d.days) txt(ctx, `Best: ${d.best} days`, W / 2, 1560, { font: `36px ${MONO}`, align: 'center', color: C.muted });
+    brand(ctx);
+  };
+  CARDS.level = async (ctx, d) => {
+    background(ctx, C.xp);
+    kicker(ctx, 'LEVEL UP', C.xp);
+    // XP ring
+    ctx.save(); ctx.lineWidth = 34; ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath(); ctx.arc(W / 2, 760, 300, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = C.xp; ctx.beginPath(); ctx.arc(W / 2, 760, 300, -Math.PI / 2, Math.PI * 1.5); ctx.stroke();
+    ctx.restore();
+    txt(ctx, 'LEVEL', W / 2, 640, { font: `700 44px ${HUD}`, align: 'center', color: C.muted, spacing: 14 });
+    txt(ctx, String(d.level), W / 2, 890, { font: `900 280px ${HUD}`, align: 'center' });
+    txt(ctx, `${fmt(d.xp)} XP EARNED`, W / 2, 1210, { font: `700 56px ${HUD}`, align: 'center', color: C.xp, spacing: 6 });
+    if (d.streak) txt(ctx, `${d.streak}-day streak`, W / 2, 1300, { font: `40px ${MONO}`, align: 'center', color: C.muted });
+    txt(ctx, 'Earned by showing up, one goal at a time.', W / 2, 1480, { font: `600 44px ${UI}`, align: 'center', color: '#cfcfcf' });
+    brand(ctx);
+  };
+  CARDS.day = async (ctx, d) => {
+    background(ctx, C.good);
+    kicker(ctx, 'PERFECT DAY', C.good);
+    txt(ctx, d.date.toUpperCase(), W / 2, 330, { font: `36px ${MONO}`, align: 'center', color: C.muted, spacing: 4 });
+    const rows = [['GOALS', d.goals, d.goalsTotal], ['NON-NEGOTIABLES', d.nn, d.nnTotal]].filter(r => r[2] > 0);
+    rows.forEach(([l, a, b], i) => {
+      const y = 460 + i * 380;
+      panel(ctx, 90, y, W - 180, 320);
+      txt(ctx, `${a}/${b}`, W / 2, y + 190, { font: `900 170px ${HUD}`, align: 'center', color: a >= b ? C.good : C.text });
+      txt(ctx, l, W / 2, y + 270, { font: `700 34px ${HUD}`, align: 'center', color: C.muted, spacing: 10 });
+    });
+    const y = 460 + rows.length * 380 + 90;
+    if (d.streak) txt(ctx, `🔥 ${d.streak}-day streak`, W / 2, y, { font: `700 56px ${UI}`, align: 'center' });
+    if (d.xp) txt(ctx, `+${d.xp} XP today`, W / 2, y + 90, { font: `700 48px ${HUD}`, align: 'center', color: C.xp });
+    brand(ctx);
+  };
+  CARDS.week = async (ctx, d) => {
+    background(ctx, C.xp);
+    kicker(ctx, 'MY WEEK', C.xp);
+    txt(ctx, d.range.toUpperCase(), W / 2, 330, { font: `36px ${MONO}`, align: 'center', color: C.muted, spacing: 3 });
+    const tiles = [
+      [d.goalsPct === null ? '—' : d.goalsPct + '%', 'GOALS HIT'],
+      [String(d.streak || 0), 'DAY STREAK'],
+      [d.xp === null ? '—' : '+' + fmt(d.xp), 'XP EARNED'],
+      [String(d.workouts || 0), 'WORKOUTS'],
+      [d.volume ? fmt(d.volume) : '—', 'KG LIFTED'],
+      [d.sleep ? d.sleep.toFixed(1) + 'h' : '—', 'AVG SLEEP'],
+    ];
+    tiles.forEach(([v, l], i) => {
+      const x = 90 + (i % 2) * 460, y = 420 + Math.floor(i / 2) * 300;
+      panel(ctx, x, y, 440, 260);
+      txt(ctx, v, x + 220, y + 150, { font: `900 96px ${HUD}`, align: 'center', maxWidth: 400 });
+      txt(ctx, l, x + 220, y + 215, { font: `700 28px ${HUD}`, align: 'center', color: C.muted, spacing: 6 });
+    });
+    if (d.pr) {
+      panel(ctx, 90, 1350, W - 180, 180);
+      txt(ctx, 'BEST LIFT', 140, 1420, { font: `700 28px ${HUD}`, color: C.pr, spacing: 6 });
+      txt(ctx, d.pr, 140, 1490, { font: `600 50px ${UI}`, maxWidth: W - 280 });
+    }
+    brand(ctx);
+  };
+
   async function render(v) {
     await loadFonts();
     const canvas = document.createElement('canvas');

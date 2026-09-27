@@ -1335,6 +1335,10 @@ input:focus,textarea:focus{border-color:#fff;}
 
 <!-- PROFILE -->
 <div id="page-profile" class="page">
+  <div id="share-week-bar" style="display:none;padding:14px 20px;border-bottom:1px solid #1a1a1a;align-items:center;justify-content:space-between;gap:12px;">
+    <div style="font-family:var(--font-hud);font-size:10px;letter-spacing:0.15em;color:#fff;">YOUR WEEK<div style="font-family:var(--font-mono);font-size:10px;color:#777;letter-spacing:0.04em;margin-top:4px;">Goals, streak, XP, gym and sleep on one card</div></div>
+    <button onclick="shareWeek()" style="background:#fff;color:#000;border:none;border-radius:999px;padding:9px 16px;font:700 12px Inter,sans-serif;cursor:pointer;flex-shrink:0;">Share my week ↗</button>
+  </div>
 
   <div style="display:grid;grid-template-columns:300px 1fr;gap:1px;background:#1a1a1a;min-height:calc(100vh - 60px);">
 
@@ -1836,7 +1840,7 @@ async function checkSubscription(){
   }
 }
 
-async function startApp(){renderPrivacyToggle();renderBetaToggle();updateNotifBadge();mountGym();mountInterests();
+async function startApp(){renderPrivacyToggle();renderBetaToggle();updateNotifBadge();mountGym();mountInterests();if(BETA_ENABLED){const swb=document.getElementById('share-week-bar');if(swb)swb.style.display='flex';}
   checkMobile();
   renderChecklist('goals-list');renderChecklist('nonneg-list');renderChecklist('longterm-list');renderChecklist('weekly-targets-list');
   updateStatRow();renderXP();renderHealth();updateCalorieDisplay();renderLog();renderHustleStats();
@@ -2388,6 +2392,62 @@ function updateStatRow(){
   // Legacy
   setEl('sd-goals',done===total?'✓ all done':(total-done)+' remaining');
   const sd=document.getElementById('sd-goals');if(sd)sd.className='sd '+(done>=total&&total>0?'up':'neutral');
+  checkPerfectDay();
+}
+
+// Perfect day = every labelled goal and non-negotiable ticked. Offered once a
+// day, only at the moment it happens (not on page load).
+let wasPerfectDay=null;
+function checkPerfectDay(){
+  if(!state)return;
+  const g=state.goals.filter(x=>x.label), n=(state.nonneg||[]).filter(x=>x.label);
+  const perfect=g.length>0&&g.every(x=>x.done)&&n.every(x=>x.done);
+  const first=wasPerfectDay===null;
+  const becamePerfect=perfect&&wasPerfectDay===false;
+  wasPerfectDay=perfect;
+  if(first||!becamePerfect||!BETA_ENABLED||state.lastPerfectShare===TODAY)return;
+  state.lastPerfectShare=TODAY;save();
+  const xpToday=g.length*10+n.length*10;
+  setTimeout(()=>offerShare('Perfect day. Share it',[{type:'day',label:'Perfect day',data:{
+    date:new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'}),
+    goals:g.length,goalsTotal:g.length,nn:n.length,nnTotal:n.length,
+    streak:(state.streakData&&state.streakData.current)||0,xp:xpToday}}]),900);
+}
+
+// Last 7 days for the weekly recap card.
+function weekShareData(){
+  const hist=(state.goalHistory||[]).slice(-6);
+  const gDoneToday=state.goals.filter(x=>x.done&&x.label).length, gTotToday=state.goals.filter(x=>x.label).length;
+  let done=gDoneToday, tot=gTotToday;
+  hist.forEach(h=>{done+=h.goalsDone||0;tot+=h.goalsTotal||0;});
+  const weekAgo=(state.goalHistory||[]).slice(-7)[0];
+  const gym=(typeof ForgeGym!=='undefined'&&gymMounted)?ForgeGym.weekStats():null;
+  const end=new Date(), start=new Date(Date.now()-6*86400000);
+  const f=d=>d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  return {range:f(start)+' – '+f(end),goalsPct:tot?Math.round(done/tot*100):null,
+    streak:(state.streakData&&state.streakData.current)||0,
+    xp:weekAgo&&typeof weekAgo.xp==='number'?Math.max(0,state.xp-weekAgo.xp):null,
+    workouts:gym?gym.workouts:0,volume:gym?gym.volume:0,sleep:gym?gym.sleepAvg:null,pr:gym?gym.bestLift:''};
+}
+function shareWeek(){ForgeShare.open([{type:'week',label:'My week',data:weekShareData()}]);}
+
+// Small "Share ↗" pop-up used for moments that happen outside the 2.0 pages.
+function offerShare(label,variants){
+  if(typeof ForgeShare==='undefined')return;
+  let el=document.getElementById('share-offer');
+  if(!el){
+    el=document.createElement('div');el.id='share-offer';
+    el.style.cssText='position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(140px);z-index:9700;display:flex;align-items:center;gap:10px;background:#fff;color:#000;border-radius:999px;padding:8px 8px 8px 18px;box-shadow:0 10px 40px rgba(0,0,0,0.6);font-family:Inter,-apple-system,sans-serif;font-size:14px;font-weight:600;transition:transform 0.3s cubic-bezier(0.22,1,0.36,1);max-width:calc(100% - 24px);';
+    document.body.appendChild(el);
+  }
+  el.innerHTML='<span></span><button style="background:#000;color:#fff;border:none;border-radius:999px;padding:9px 16px;font:700 13px Inter,sans-serif;cursor:pointer;">Share ↗</button><button aria-label="Dismiss" style="background:none;border:none;color:#777;font-size:18px;cursor:pointer;padding:0 6px;">×</button>';
+  el.querySelector('span').textContent=label;
+  const hide=()=>{el.style.transform='translateX(-50%) translateY(140px)';};
+  const b=el.querySelectorAll('button');
+  b[0].onclick=()=>{hide();ForgeShare.open(variants);};
+  b[1].onclick=hide;
+  requestAnimationFrame(()=>{el.style.transform='translateX(-50%) translateY(0)';});
+  clearTimeout(offerShare._t);offerShare._t=setTimeout(hide,9000);
 }
 
 // HEALTH
@@ -2688,6 +2748,7 @@ function checkWeeklyReview(){
     const prompt=`It is Sunday. Give a weekly review for the user. Cover: what their data shows about this week (level ${lvl}, streak ${streak} days, goals done ${goalsDone}/5), one honest observation about their progress, and set one clear focus for next week. Under 100 words. Direct and motivating.`;
     triggerAutoMessage(prompt,'weekly-review');
     save();
+    if(BETA_ENABLED)setTimeout(()=>offerShare('Your week is in. Share it',[{type:'week',label:'My week',data:weekShareData()}]),4000);
   }
 }
 
@@ -3560,6 +3621,7 @@ function triggerLevelUp(level){
   setTimeout(()=>{
     overlay.classList.remove('active');
     stopParticles();
+    if(BETA_ENABLED)offerShare(`Share level ${level}`,[{type:'level',label:'Level',data:{level,xp:state.xp,streak:(state.streakData&&state.streakData.current)||0}}]);
   },2800);
 }
 
@@ -4213,8 +4275,10 @@ function celebrateGoalsDone(){
 
 // Streak milestone messages
 function checkStreakMilestone(streak){
-  const milestones={3:'3 day streak. The habit is forming.',7:'7 days straight. You are on a run.',14:'Two weeks. Most people quit before this.',30:'30 days. This is who you are now.'};
-  if(milestones[streak])toast(milestones[streak],true);
+  const milestones={3:'3 day streak. The habit is forming.',7:'7 days straight. You are on a run.',14:'Two weeks. Most people quit before this.',30:'30 days. This is who you are now.',50:'50 days. Rare air.',100:'100 days. Unbreakable.',365:'A full year. Legendary.'};
+  if(!milestones[streak])return;
+  toast(milestones[streak],true);
+  if(BETA_ENABLED)setTimeout(()=>offerShare(`Share your ${streak}-day streak`,[{type:'streak',label:'Streak',data:{days:streak,best:(state.streakData&&state.streakData.best)||streak,line:milestones[streak]}}]),2600);
 }
 
 // Warmer loader messages
