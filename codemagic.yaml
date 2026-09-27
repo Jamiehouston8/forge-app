@@ -40,9 +40,12 @@ workflows:
           #!/bin/sh
           set -e
           cd "$CM_BUILD_DIR/ios/App"
-          # Falls back to 0 for this app's first-ever submission, when there's
-          # no existing App Store build number to look up yet.
-          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          # TestFlight uploads don't count as App Store builds, so check both and
+          # take the higher. Each falls back to 0 when there's nothing there yet.
+          TESTFLIGHT_BUILD=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 0)
+          APP_STORE_BUILD=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 0)
+          LATEST_BUILD_NUMBER=$(( TESTFLIGHT_BUILD > APP_STORE_BUILD ? TESTFLIGHT_BUILD : APP_STORE_BUILD ))
+          echo "Latest TestFlight build: $TESTFLIGHT_BUILD, App Store build: $APP_STORE_BUILD -> using $(($LATEST_BUILD_NUMBER + 1))"
           agvtool new-version -all $(($LATEST_BUILD_NUMBER + 1))
       - name: Build ipa for distribution
         script: |
