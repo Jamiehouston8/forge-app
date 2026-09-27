@@ -2862,6 +2862,7 @@ function renderStreak(){
   if(!state.streakData)state.streakData={current:0,best:0,lastDate:'',history:[]};
   const sd=state.streakData;
   setEl('streak-count',sd.current);
+  setEl('s-streak',sd.current);
   setEl('streak-best',sd.best);
 
   // 7 day dots
