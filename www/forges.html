@@ -12,6 +12,7 @@
 <title>FORGE</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="gym/gym.css"/>
+<link rel="stylesheet" href="interests/interests.css"/>
 <style>
 :root {
   --bg:    #0a0a0a;
@@ -1170,6 +1171,8 @@ input:focus,textarea:focus{border-color:#fff;}
 
 <!-- INTERESTS -->
 <div id="page-interests" class="page">
+<!-- Forge 2.0 Interests (interests/interests.js); replaces the rows below when the beta is on -->
+<div id="interests-root" class="fg-root" style="display:none;"></div>
 
   <!-- ── ROW 1: CREATIVE SECTION ── -->
   <div style="padding:12px 20px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;justify-content:space-between;">
@@ -1587,6 +1590,7 @@ input:focus,textarea:focus{border-color:#fff;}
 <script src="gym/exercises.js"></script>
 <script src="gym/bodymap.js"></script>
 <script src="gym/gym.js"></script>
+<script src="interests/interests.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -1831,7 +1835,7 @@ async function checkSubscription(){
   }
 }
 
-async function startApp(){renderPrivacyToggle();renderBetaToggle();updateNotifBadge();mountGym();
+async function startApp(){renderPrivacyToggle();renderBetaToggle();updateNotifBadge();mountGym();mountInterests();
   checkMobile();
   renderChecklist('goals-list');renderChecklist('nonneg-list');renderChecklist('longterm-list');renderChecklist('weekly-targets-list');
   updateStatRow();renderXP();renderHealth();updateCalorieDisplay();renderLog();renderHustleStats();
@@ -2283,7 +2287,37 @@ function mountGym(){
   if(navHealth)navHealth.style.display='none';
 }
 
+// Interests 2.0 (interests/interests.js). Data lives on state.interestsV2; the
+// old creative/education data is copied in once and left untouched.
+let interestsMounted=false;
+async function aiText(prompt,maxTokens){
+  const res=await fetch('https://qkcnyoiaujhxbnszrbmw.supabase.co/functions/v1/claude-proxy',{method:'POST',headers:aiHeaders(),
+    body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:maxTokens||900,messages:[{role:'user',content:prompt}]})});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok||data.error)throw new Error((data.error&&data.error.message)||data.error||'AI request failed');
+  return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text||'').join('');
+}
+function mountInterests(){
+  if(typeof ForgeInterests==='undefined'||!BETA_ENABLED)return;
+  if(interestsMounted){ForgeInterests.refresh();return;}
+  const el=document.getElementById('interests-root');
+  if(!el)return;
+  // hide the old Interests rows; the 2.0 page replaces them
+  [...el.parentElement.children].forEach(c=>{if(c!==el)c.style.display='none';});
+  el.style.display='';
+  ForgeInterests.mount(el,{
+    get:()=>state&&state.interestsV2,
+    put:d=>{state.interestsV2=d;save();},
+    legacy:()=>({creative:state.creative,education:state.education}),
+    toast:m=>toast(m,true),
+    awardXP:(n,reason)=>awardXP(n,reason),
+    ai:aiText,
+  });
+  interestsMounted=true;
+}
+
 function showPage(name){
+  if(name==='interests'&&interestsMounted)ForgeInterests.render();
   if(name==='gym'&&!GYM_ENABLED)name='home';
   if(name==='health'&&GYM_ENABLED&&gymMounted){ForgeGym.openTab('recovery');name='gym';}
   if(name==='gym'&&gymMounted)ForgeGym.render();
@@ -2600,7 +2634,7 @@ Non-negotiables: ${nnDone}/5 — ${nnCtx}
 Long-term goals: ${ltCtx||'none set'}
 Side hustles: ${hustleCtx||'none'}
 Sleep: ${state.health.sleep?state.health.sleep+'h':'not logged'} | Steps: ${state.health.steps?state.health.steps.toLocaleString():'not logged'}
-${GYM_ENABLED&&typeof ForgeGym!=='undefined'?'Gym: '+ForgeGym.mentorSummary()+'\n':''}Time of day: ${timeOfDay}
+${GYM_ENABLED&&typeof ForgeGym!=='undefined'?'Gym: '+ForgeGym.mentorSummary()+'\n':''}${interestsMounted?'Interests: '+ForgeInterests.mentorSummary()+'\n':''}Time of day: ${timeOfDay}
 
 ${momentumState}
 ${patternNote}

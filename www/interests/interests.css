@@ -1,0 +1,83 @@
+/* Forge Interests. Builds on gym/gym.css (.fg); everything here is scoped under .fi. */
+.fi .fi-bar { display: flex; justify-content: space-between; align-items: center; margin: 4px 0 12px; }
+.fi .fi-add { font-family: var(--fg-hud); font-size: 10px; letter-spacing: 0.12em; padding: 8px 14px; border-radius: 999px; background: #fff; color: #000; }
+.fi .chips { margin-bottom: 12px; }
+
+/* shelf grid */
+.fi .fi-shelf, .fi .fi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 10px; align-items: start; }
+.fi .fi-item { text-align: left; min-width: 0; }
+.fi .fi-item b { display: block; font-family: var(--fg-ui); font-size: 12px; font-weight: 600; margin-top: 7px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.fi .fi-item span { display: block; font-size: 10px; color: var(--fg-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* covers */
+.fi .fi-cover { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: var(--fg-bg3); box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
+.fi .fi-cover { aspect-ratio: 1 / 1; }
+.fi .fi-cover img.blur { filter: blur(14px) brightness(0.5); transform: scale(1.25); }
+.fi .fi-cover img.fit { object-fit: contain; z-index: 2; }
+.fi .fi-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+.fi .fi-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 8px; text-align: center; font-family: var(--fg-ui); font-size: 11px; color: #777; }
+.fi .fi-cover.gen { display: flex; flex-direction: column; justify-content: flex-end; padding: 10px 9px; border: 1px solid rgba(255,255,255,0.08); }
+.fi .fi-gen-kind { font-family: var(--fg-hud); font-size: 7px; letter-spacing: 0.2em; color: rgba(255,255,255,0.55); margin-bottom: auto; }
+.fi .fi-gen-title { font-family: var(--fg-hud); font-size: 11px; font-weight: 700; line-height: 1.25; color: #fff; letter-spacing: 0.03em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+.fi .fi-gen-year { font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+.fi .fi-cover.small { width: 64px; flex-shrink: 0; }
+.fi .fi-cover.small .fi-gen-title { font-size: 8px; -webkit-line-clamp: 3; }
+.fi .fi-cover.small .fi-gen-kind { display: none; }
+
+/* add sheet */
+.fi .fi-results { margin-top: 6px; min-height: 120px; }
+.fi .fi-results .fi-grid { gap: 12px 8px; }
+
+/* item detail */
+.fi .fi-detail { display: grid; grid-template-columns: 110px 1fr; gap: 14px; align-items: start; }
+.fi .fi-detail b { font-family: var(--fg-ui); font-size: 17px; display: block; line-height: 1.3; }
+.fi .fi-detail span { font-size: 12px; color: var(--fg-muted); display: block; margin-top: 4px; }
+.fi .fi-stars { margin-top: 12px; display: flex; gap: 4px; }
+.fi .fi-stars button { font-size: 22px; color: #333; }
+.fi .fi-stars button.on { color: #ffd166; }
+
+/* inline add rows */
+.fi .fi-inline { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.fi .fi-inline .btn { width: auto; padding: 12px 18px; flex-shrink: 0; }
+.fi .fi-inline .seg { flex: 1; display: flex; }
+.fi .fi-inline .seg button { flex: 1; padding: 9px 4px; font-size: 11px; }
+.fi .fi-in { flex: 1; min-width: 0; background: var(--fg-bg3); border: 1px solid var(--fg-border); border-radius: 10px; padding: 12px; font-size: 16px; color: #fff; outline: none; }
+.fi .fi-in:focus { border-color: #555; }
+
+/* hobbies */
+.fi .fi-hobby { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
+.fi .fi-hobby b, .fi .fi-skill-top b { font-family: var(--fg-ui); font-size: 15px; display: block; }
+.fi .fi-hobby span, .fi .fi-skill-top span { font-size: 11px; color: var(--fg-muted); display: block; margin-top: 3px; }
+.fi .fi-did { padding: 9px 14px; border-radius: 9px; background: var(--fg-bg3); font-size: 12px; color: #ddd; }
+.fi .fi-did.done { background: var(--fg-good); color: #000; }
+
+/* skills */
+.fi .fi-skill-top { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; margin-bottom: 10px; }
+.fi .fi-lvl { font-family: var(--fg-hud); font-size: 9px; letter-spacing: 0.14em; color: var(--fg-xp); border: 1px solid #2d2650; background: #151225; border-radius: 8px; padding: 6px 9px; }
+.fi .fi-lvl b { font-size: 15px; color: #fff; margin-left: 2px; }
+.fi .fi-log { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.fi .fi-log button { padding: 10px 0; border-radius: 9px; background: var(--fg-bg3); color: #ddd; font-size: 13px; }
+.fi .fi-log button:active { background: var(--fg-xp); color: #fff; }
+
+/* learning quests */
+.fi .fi-steps { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.fi .fi-step { display: grid; grid-template-columns: 26px 1fr; gap: 10px; text-align: left; padding: 9px 8px; border-radius: 10px; background: var(--fg-bg2); }
+.fi .fi-step i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #333; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #888; }
+.fi .fi-step b { font-family: var(--fg-ui); font-size: 13px; font-weight: 600; display: block; }
+.fi .fi-step span { font-size: 11px; color: var(--fg-muted); display: block; margin-top: 3px; line-height: 1.45; }
+.fi .fi-step.done i { background: var(--fg-good); border-color: var(--fg-good); color: #000; }
+.fi .fi-step.done b { color: #777; text-decoration: line-through; }
+
+/* discover */
+.fi .fi-disc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0; }
+.fi .fi-disc button { padding: 11px 4px; border-radius: 10px; border: 1px solid var(--fg-border); background: var(--fg-bg1); font-size: 12px; color: #bbb; }
+.fi .fi-disc button.active { background: #fff; color: #000; }
+.fi .fi-disc button:disabled { opacity: 0.5; }
+.fi .fi-recs { display: flex; flex-direction: column; gap: 10px; }
+.fi .fi-rec { display: grid; grid-template-columns: 64px 1fr 36px; gap: 12px; align-items: center; background: var(--fg-bg1); border: 1px solid var(--fg-border); border-radius: 14px; padding: 10px; }
+.fi .fi-rec b { font-family: var(--fg-ui); font-size: 14px; display: block; }
+.fi .fi-rec span { font-size: 11px; color: var(--fg-muted); display: block; margin-top: 2px; }
+.fi .fi-rec p { font-family: var(--fg-ui); font-size: 12px; color: #bbb; margin: 5px 0 0; line-height: 1.45; }
+.fi .fi-add-rec { width: 36px; height: 36px; border-radius: 50%; background: #fff; color: #000; font-size: 18px; }
+.fi .fi-add-rec.done { background: var(--fg-good); }
+.fi .empty .btn { margin-top: 8px; }
