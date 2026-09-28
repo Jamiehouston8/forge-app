@@ -45,7 +45,8 @@ as $$
   )
   select
     n.user_id,
-    coalesce(n.data->>'username', n.data->'profile'->>'username', n.data->'profile'->>'name') as username,
+    -- only characters that are safe in HTML (the app cleans names too)
+    left(regexp_replace(coalesce(n.data->>'username', n.data->'profile'->>'username', n.data->'profile'->>'name', ''), '[^[:alnum:]#_ .-]', '', 'g'), 30) as username,
     n.priv as is_private,
     floor(n.xp_n)::integer as xp,
     floor(n.streak_n)::integer as streak,
@@ -57,7 +58,7 @@ as $$
     (select count(*)::integer from jsonb_array_elements(case when jsonb_typeof(n.data->'longterm') = 'array' then n.data->'longterm' else '[]'::jsonb end) g
       where g->>'done' = 'true' and coalesce(g->>'label', '') <> '') as longterm_done,
     case when n.priv then null else array(
-      select e.key from jsonb_each(case when jsonb_typeof(n.data->'interests') = 'object' then n.data->'interests' else '{}'::jsonb end) e
+      select left(regexp_replace(e.key, '[^[:alnum:]#_ .-]', '', 'g'), 30) from jsonb_each(case when jsonb_typeof(n.data->'interests') = 'object' then n.data->'interests' else '{}'::jsonb end) e
       where e.value not in ('false'::jsonb, 'null'::jsonb, '""'::jsonb, '0'::jsonb)
       limit 6) end as interests,
     n.updated_at

@@ -1558,6 +1558,13 @@ input:focus,textarea:focus{border-color:#fff;}
       <div id="account-friend-result" style="margin-top:10px;"></div>
     </div>
 
+    <!-- BLOCKED USERS -->
+    <div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;padding:16px 20px;margin-top:16px;">
+      <div style="font-family:var(--font-hud);font-size:10px;color:#fff;letter-spacing:0.1em;margin-bottom:6px;">BLOCKED USERS</div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:#555;margin-bottom:10px;">Blocked users are hidden from your leaderboard, friend search and requests.</div>
+      <div id="blocked-list"></div>
+    </div>
+
     <!-- PRIVACY TOGGLE -->
     <div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;padding:16px 20px;margin-top:16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1596,6 +1603,7 @@ input:focus,textarea:focus{border-color:#fff;}
 <script src="gym/gym.js"></script>
 <script src="interests/interests.js"></script>
 <script src="share/share.js"></script>
+<script src="moderation.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -2089,7 +2097,8 @@ function submitOnboardingAnswer(val){
 async function finishOnboarding(){
   // Generate username if not already set
   if(onboardingData.username){
-    const base=onboardingData.username.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,20)||'user';
+    let base=onboardingData.username.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,20)||'user';
+    if(ForgeModeration.isOffensiveName(onboardingData.username)){base='player';setTimeout(()=>toast('That username isn\'t allowed, so you\'re "player" for now. Change it in Account.'),1500);}
     generateUsername(base).then(uname=>{
       onboardingData.resolvedUsername=uname;
       if(state&&state.profile) state.profile.username=uname;
@@ -3874,6 +3883,7 @@ function handleAvatarUpload(e){
 // ACCOUNT PAGE
 // ══════════════════════════
 function renderAccountPage(){
+  renderBlockedList();
   // Show username
   const unEl = document.getElementById('account-username-display');
   if(unEl) unEl.textContent = state.profile?.username || '— not set';
@@ -4725,13 +4735,121 @@ async function fetchPublicProfiles(filter){
 }
 // Shape a public profile like the data blob the friend screens were written for.
 // Level and belt come from XP (they were never saved, so cards always said LV 1).
+const XP_BELTS=[['White',0],['Yellow',500],['Orange',1500],['Blue',3000],['Purple',6000],['Brown',10000],['Red',15000],['Black',25000]];
+function xpBelt(xp){let b='White';for(const [n,at] of XP_BELTS)if(xp>=at)b=n;return b+' Belt';}
 function publicToData(p){
   const level=getLvl(p.xp||0);
-  const interests={};(p.interests||[]).forEach(k=>{interests[k]=true;});
-  return {username:p.username,private:!!p.is_private,xp:p.xp||0,streak:p.streak||0,
+  const interests={};(p.interests||[]).forEach(k=>{k=ForgeModeration.cleanName(k);if(k)interests[k]=true;});
+  return {username:ForgeModeration.cleanName(p.username),private:!!p.is_private,xp:p.xp||0,streak:p.streak||0,
     streakData:{current:p.streak||0,best:p.best_streak||0},level,
-    beltLabel:level>=10?'Red Belt':level>=5?'Yellow Belt':'White Belt',
+    beltLabel:xpBelt(p.xp||0),
     goalsToday:p.goals_done||0,goalsDone:p.goals_done||0,nonnegDone:p.nonneg_done||0,longtermDone:p.longterm_done||0,interests};
+}
+
+// ── REPORT / BLOCK (App Store guideline 1.2) ──
+// Block lives on your own synced state (state.blocked) and hides that user from
+// your leaderboard, friend search, friend list and requests. Reports go to the
+// `reports` table (supabase/sql/06-reports.sql), which only the Forge team reads.
+function isBlocked(uid){return !!(state&&state.blocked||[]).find(b=>b.userId===uid);}
+function uaButton(uid,name,style){
+  const id=String(uid||'').replace(/[^a-zA-Z0-9-]/g,'');
+  if(!id)return '';
+  return '<button data-ua-uid="'+id+'" data-ua-name="'+ForgeModeration.cleanName(name)+'" aria-label="Report or block" style="background:transparent;border:none;color:#555;font-size:16px;line-height:1;padding:4px 8px;cursor:pointer;'+style+'">⋯</button>';
+}
+document.addEventListener('click',function(e){
+  const b=e.target.closest('[data-ua-uid]');
+  if(!b)return;
+  e.preventDefault();e.stopPropagation();
+  openUserActions(b.getAttribute('data-ua-uid'),b.getAttribute('data-ua-name'));
+},true);
+
+const UA_BTN='display:block;width:100%;background:transparent;border:1px solid #2a2a2a;border-radius:10px;color:#ddd;font-family:var(--font-hud);font-size:10px;letter-spacing:0.1em;padding:14px;margin-top:8px;cursor:pointer;';
+function uaSheet(html){
+  let m=document.getElementById('ua-modal');
+  if(!m){
+    m=document.createElement('div');m.id='ua-modal';
+    m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;display:flex;align-items:flex-end;justify-content:center;';
+    m.addEventListener('click',e=>{if(e.target===m)closeUserActions();});
+    document.body.appendChild(m);
+  }
+  m.innerHTML='<div style="width:100%;max-width:480px;background:#0f0f0f;border:1px solid #222;border-bottom:none;border-radius:16px 16px 0 0;padding:20px 18px calc(24px + env(safe-area-inset-bottom));">'+html+'</div>';
+  m.style.display='flex';
+  return m;
+}
+function closeUserActions(){const m=document.getElementById('ua-modal');if(m)m.style.display='none';}
+let uaTarget=null;
+function openUserActions(uid,name){
+  if(currentUser&&uid===currentUser.id)return;
+  uaTarget={uid,name:ForgeModeration.cleanName(name)||'this user'};
+  const blocked=isBlocked(uid);
+  uaSheet('<div style="font-family:var(--font-hud);font-size:13px;color:#fff;letter-spacing:0.08em;margin-bottom:10px;">'+uaTarget.name+'</div>'
+    +'<button onclick="showReportForm()" style="'+UA_BTN+'">REPORT USER</button>'
+    +'<button onclick="'+(blocked?'unblockUser(uaTarget.uid)':'confirmBlockUser()')+'" style="'+UA_BTN+'color:#ff6b6b;border-color:#3a1414;">'+(blocked?'UNBLOCK':'BLOCK')+' USER</button>'
+    +'<button onclick="closeUserActions()" style="'+UA_BTN+'border:none;color:#666;">CANCEL</button>');
+}
+const REPORT_REASONS=[['offensive_name','Offensive username'],['harassment','Harassment or spam'],['cheating','Fake stats or cheating'],['other','Something else']];
+function showReportForm(){
+  if(!currentUser||!userToken){toast('Sign in to report users');return;}
+  uaSheet('<div style="font-family:var(--font-hud);font-size:13px;color:#fff;letter-spacing:0.08em;margin-bottom:4px;">REPORT '+uaTarget.name.toUpperCase()+'</div>'
+    +'<div style="font-family:var(--font-mono);font-size:10px;color:#555;margin-bottom:10px;">We review every report within 24 hours.</div>'
+    +REPORT_REASONS.map(([v,l],i)=>'<label style="display:flex;align-items:center;gap:10px;padding:10px 2px;font-family:var(--font-mono);font-size:12px;color:#ddd;border-bottom:1px solid #1a1a1a;cursor:pointer;"><input type="radio" name="ua-reason" value="'+v+'"'+(i?'':' checked')+'/>'+l+'</label>').join('')
+    +'<textarea id="ua-details" maxlength="500" placeholder="Anything we should know? (optional)" style="width:100%;box-sizing:border-box;margin-top:12px;min-height:70px;background:#141414;border:1px solid #222;border-radius:8px;color:#fff;font-family:var(--font-mono);font-size:12px;padding:10px;outline:none;"></textarea>'
+    +'<button id="ua-send" onclick="sendReport()" style="'+UA_BTN+'background:#fff;color:#000;border-color:#fff;font-weight:700;">SEND REPORT</button>'
+    +'<button onclick="closeUserActions()" style="'+UA_BTN+'border:none;color:#666;">CANCEL</button>');
+}
+async function sendReport(){
+  const reason=(document.querySelector('input[name="ua-reason"]:checked')||{}).value||'other';
+  const details=((document.getElementById('ua-details')||{}).value||'').trim().slice(0,500);
+  const btn=document.getElementById('ua-send');if(btn){btn.disabled=true;btn.textContent='SENDING...';}
+  try{
+    const res=await fetch(SB_URL+'/rest/v1/reports',{method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+userToken,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({reported_user_id:uaTarget.uid,reported_username:uaTarget.name,reason,details:details||null})});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+  }catch(e){
+    console.log('Report failed:',e);
+    if(btn){btn.disabled=false;btn.textContent='SEND REPORT';}
+    toast('Could not send the report. Try again.');return;
+  }
+  const blocked=isBlocked(uaTarget.uid);
+  uaSheet('<div style="font-family:var(--font-hud);font-size:13px;color:#fff;letter-spacing:0.08em;margin-bottom:8px;">REPORT SENT</div>'
+    +'<div style="font-family:var(--font-mono);font-size:12px;color:#aaa;line-height:1.6;">Thanks. We\'ll review it within 24 hours.'+(blocked?'':' You can also block '+uaTarget.name+' so you don\'t see them.')+'</div>'
+    +(blocked?'':'<button onclick="blockUser()" style="'+UA_BTN+'color:#ff6b6b;border-color:#3a1414;">BLOCK '+uaTarget.name.toUpperCase()+'</button>')
+    +'<button onclick="closeUserActions()" style="'+UA_BTN+'border:none;color:#666;">DONE</button>');
+}
+function confirmBlockUser(){
+  uaSheet('<div style="font-family:var(--font-hud);font-size:13px;color:#fff;letter-spacing:0.08em;margin-bottom:8px;">BLOCK '+uaTarget.name.toUpperCase()+'?</div>'
+    +'<div style="font-family:var(--font-mono);font-size:12px;color:#aaa;line-height:1.6;">They\'ll be hidden from your leaderboard, friend search and friend requests, and removed from your friends. They won\'t be told. You can unblock them in Account.</div>'
+    +'<button onclick="blockUser()" style="'+UA_BTN+'background:#ff6b6b;color:#000;border-color:#ff6b6b;font-weight:700;">BLOCK</button>'
+    +'<button onclick="closeUserActions()" style="'+UA_BTN+'border:none;color:#666;">CANCEL</button>');
+}
+function blockUser(){
+  if(!uaTarget)return;
+  if(!state.blocked)state.blocked=[];
+  if(!isBlocked(uaTarget.uid))state.blocked.push({userId:uaTarget.uid,username:uaTarget.name,at:Date.now()});
+  if(state.friends)state.friends=state.friends.filter(f=>f.userId!==uaTarget.uid);
+  save();closeUserActions();afterBlockChange();
+  toast(uaTarget.name+' blocked');
+}
+function unblockUser(uid){
+  state.blocked=(state.blocked||[]).filter(b=>b.userId!==uid);
+  save();closeUserActions();afterBlockChange();
+  toast('Unblocked');
+}
+function afterBlockChange(){
+  if(typeof lbData!=='undefined'&&Array.isArray(lbData))renderLeaderboard(lbData.filter(u=>!isBlocked(u.userId)));
+  if(document.getElementById('friends-list'))renderFriendsList();
+  renderBlockedList();updateNotifBadge();
+  const fp=document.getElementById('friend-profile-modal');if(fp&&fp.style.display==='block'&&isBlocked(window._fpUserId))closeFriendProfile();
+  const notif=document.getElementById('notif-panel');if(notif&&notif.style.display!=='none')renderNotifications();
+}
+function renderBlockedList(){
+  const el=document.getElementById('blocked-list');if(!el)return;
+  const list=(state&&state.blocked)||[];
+  el.innerHTML=list.length?list.map(b=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1a1a1a;">'
+    +'<span style="font-family:var(--font-mono);font-size:12px;color:#aaa;">'+ForgeModeration.cleanName(b.username)+'</span>'
+    +'<button onclick="unblockUser(\''+String(b.userId).replace(/[^a-zA-Z0-9-]/g,'')+'\')" style="background:transparent;border:1px solid #333;color:#888;font-family:var(--font-hud);font-size:8px;letter-spacing:0.1em;padding:6px 12px;border-radius:6px;cursor:pointer;">UNBLOCK</button></div>').join('')
+    :'<div style="font-family:var(--font-mono);font-size:11px;color:#333;">No one blocked.</div>';
 }
 
 async function loadLeaderboard(){
@@ -4751,7 +4869,7 @@ async function loadLeaderboard(){
       const xp = r.xp || 0;
       return {
         userId: r.user_id,
-        name: r.username || 'Anonymous',
+        name: ForgeModeration.cleanName(r.username) || 'Anonymous',
         xp,
         level: getLvl(xp),
         streak: r.streak || 0,
@@ -4761,7 +4879,7 @@ async function loadLeaderboard(){
         longtermDone: r.longterm_done || 0,
         isMe: currentUser && r.user_id === currentUser.id
       };
-    }).filter(u => u.name !== 'Anonymous' || u.xp > 0);
+    }).filter(u => (u.name !== 'Anonymous' || u.xp > 0) && !isBlocked(u.userId));
 
     renderLeaderboard(lbData);
   } catch(e){
@@ -4846,7 +4964,8 @@ function renderLeaderboard(data){
       var healthPct = Math.min(100, (u.xp||0) / 50);
       var strengthPct = Math.min(100, (u.goalsDone||0) * 10);
       var mindPct = Math.min(100, (u.streak||0) * 3);
-      return '<div class="lb-player-card'+(i===0?' rank1':'')+(isMe?' is-me':'')+'">'
+      return '<div class="lb-player-card'+(i===0?' rank1':'')+(isMe?' is-me':'')+'" style="position:relative;">'
+        +(isMe?'':uaButton(u.userId,u.name,'position:absolute;top:8px;right:8px;'))
         +'<div class="lb-rank-label">'+rankLabels[i]+'</div>'
         +'<div class="lb-shield"><div class="lb-shield-bg"><div class="lb-shield-letter">'+letter+'</div></div></div>'
         +'<div class="lb-player-name">'+u.name+'</div>'
@@ -4972,6 +5091,7 @@ function renderLeaderboard(data){
           +'<div style="width:26px;height:26px;background:'+(isMe?'#fff':'#1a1a1a')+';display:flex;align-items:center;justify-content:center;font-family:var(--font-hud);font-size:11px;color:'+(isMe?'#000':'#555')+';flex-shrink:0;">'+u.name.charAt(0).toUpperCase()+'</div>'
           +'<div style="flex:1;font-family:var(--font-hud);font-size:12px;color:'+(isMe?'#fff':'#666')+';letter-spacing:0.03em;">'+u.name+'</div>'
           +'<div style="font-family:var(--font-mono);font-size:10px;color:'+(isMe?'#fff':'#444')+';">'+getScore(u)+'</div>'
+          +(isMe?'':uaButton(u.userId,u.name,''))
           +'</div>';
       }).join('')
       +'</div>';
@@ -4981,6 +5101,7 @@ async function changeUsername(newBase){
   if(!newBase) return;
   const clean = newBase.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,20);
   if(!clean){ toast('Invalid username'); return; }
+  if(ForgeModeration.isOffensiveName(newBase)){ toast('That username isn\'t allowed. Pick another.'); return; }
   const username = await generateUsername(clean);
   // Save to both locations so leaderboard + friends can find it
   state.username = username;
@@ -5709,6 +5830,11 @@ async function searchFriend(){
     }
     var user = rows[0];
     var data = publicToData(user);
+    if(isBlocked(user.user_id)){
+      if(typeof resultEl !== 'undefined' && resultEl) resultEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:#555;">You blocked this user. Unblock them in Account.</div>';
+      else toast('You blocked this user');
+      return;
+    }
     window._foundFriendId = user.user_id;
     window._foundFriendUsername = data.username || input.trim();
     if(data.private){
@@ -5787,7 +5913,7 @@ function buildFriendCard(userId, username, data, isPrivate){
   var belt = data ? (data.beltLabel||'White Belt') : '—';
   var level = data ? (data.level||1) : '—';
   var safeId = String(userId).replace(/[^a-zA-Z0-9-]/g,'');
-  var safeName = String(username).replace(/"/g,'');
+  var safeName = ForgeModeration.cleanName(username);
 
   return '<div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;padding:16px 18px;margin-bottom:10px;" data-uid="'+safeId+'" data-uname="'+safeName+'">'
     +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:'+(isPrivate?'0':'12px')+';">'
@@ -5798,6 +5924,7 @@ function buildFriendCard(userId, username, data, isPrivate){
     +'<div style="display:flex;gap:6px;">'
     +(!isPrivate?'<button class="friend-view-btn" style="background:transparent;border:1px solid #333;color:#888;font-family:var(--font-hud);font-size:8px;letter-spacing:0.1em;padding:6px 12px;border-radius:6px;cursor:pointer;">VIEW</button>':'')
     +(!isPrivate?'<button class="friend-challenge-btn" style="background:transparent;border:1px solid #333;color:#888;font-family:var(--font-hud);font-size:8px;letter-spacing:0.1em;padding:6px 12px;border-radius:6px;cursor:pointer;">⚡ CHALLENGE</button>':'')
+    +uaButton(userId,safeName,'')
     +'<button class="friend-remove-btn" style="background:transparent;border:1px solid #1a1a1a;color:#333;font-family:var(--font-hud);font-size:8px;padding:6px 10px;border-radius:6px;cursor:pointer;">✕</button>'
     +'</div>'
     +'</div>'
@@ -5825,6 +5952,7 @@ document.addEventListener('click', function(e){
 });
 
 async function openFriendProfile(userId, username){
+  username = ForgeModeration.cleanName(username);
   window._fpUserId = userId;
   window._fpUsername = username;
   var modal = document.getElementById('friend-profile-modal');
@@ -5855,6 +5983,7 @@ async function openFriendProfile(userId, username){
       +(interests.length ? '<div style="margin-top:8px;"><div style="font-family:var(--font-hud);font-size:9px;color:#555;letter-spacing:0.2em;margin-bottom:8px;">INTERESTS</div><div style="display:flex;flex-wrap:wrap;gap:6px;">'+interests.map(function(i){ return '<span style="background:#141414;border:1px solid #222;border-radius:4px;padding:4px 10px;font-family:var(--font-mono);font-size:10px;color:#888;">'+i+'</span>'; }).join('')+'</div></div>' : '')
       +'</div>'
       +'<button id="fp-challenge-btn" style="width:100%;background:#fff;border:none;color:#000;font-family:var(--font-hud);font-size:11px;font-weight:700;letter-spacing:0.1em;padding:14px;border-radius:50px;cursor:pointer;">⚡ SEND CHALLENGE</button>';
+    content.insertAdjacentHTML('beforeend', '<div style="text-align:center;margin-top:14px;"><button data-ua-uid="'+String(userId).replace(/[^a-zA-Z0-9-]/g,'')+'" data-ua-name="'+username+'" style="background:none;border:none;color:#555;font-family:var(--font-mono);font-size:11px;cursor:pointer;text-decoration:underline;">Report or block '+username+'</button></div>');
   } catch(e){
     content.innerHTML = '<div style="font-family:var(--font-mono);font-size:11px;color:#555;text-align:center;padding:40px;">Error loading profile.</div>';
   }
@@ -5973,6 +6102,11 @@ async function accountSearchFriend(){
     }
     var user = rows[0];
     var data = publicToData(user);
+    if(isBlocked(user.user_id)){
+      if(typeof resultEl !== 'undefined' && resultEl) resultEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:#555;">You blocked this user. Unblock them in Account.</div>';
+      else toast('You blocked this user');
+      return;
+    }
     window._foundFriendId = user.user_id;
     window._foundFriendUsername = data.username || input.trim();
     if(data.private){
@@ -6004,6 +6138,11 @@ async function lbQuickAddFriend(){
     if(!rows || !rows.length){ toast('No user found: ' + input); return; }
     var user = rows[0];
     var data = publicToData(user);
+    if(isBlocked(user.user_id)){
+      if(typeof resultEl !== 'undefined' && resultEl) resultEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:#555;">You blocked this user. Unblock them in Account.</div>';
+      else toast('You blocked this user');
+      return;
+    }
     var username = data.username || input;
     window._foundFriendId = user.user_id;
     window._foundFriendUsername = username;
@@ -6058,6 +6197,8 @@ async function renderNotifications(){
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (userToken||SB_KEY) }
     });
     var rows = await res.json();
+    if(Array.isArray(rows)) rows = rows.filter(function(n){ return !isBlocked(n.from_user_id); })
+      .map(function(n){ n.from_username = ForgeModeration.cleanName(n.from_username) || 'Someone'; n.from_user_id = String(n.from_user_id).replace(/[^a-zA-Z0-9-]/g,''); n.id = String(n.id).replace(/[^a-zA-Z0-9-]/g,''); return n; });
 
     if(!Array.isArray(rows) || !rows.length){
       el.innerHTML = '<div style="padding:24px;text-align:center;font-family:var(--font-mono);font-size:11px;color:#333;">No notifications</div>';
@@ -6071,11 +6212,12 @@ async function renderNotifications(){
           +'<div style="display:flex;gap:8px;">'
           +'<button class="notif-accept-btn" style="flex:1;background:#fff;border:none;color:#000;font-family:var(--font-hud);font-size:9px;font-weight:700;padding:8px;border-radius:6px;cursor:pointer;">ACCEPT</button>'
           +'<button class="notif-decline-btn" style="flex:1;background:transparent;border:1px solid #333;color:#555;font-family:var(--font-hud);font-size:9px;padding:8px;border-radius:6px;cursor:pointer;">DECLINE</button>'
+          +uaButton(n.from_user_id,n.from_username,'')
           +'</div>'
           +'</div>';
       }
       return '<div style="padding:14px 16px;border-bottom:1px solid #1a1a1a;">'
-        +'<div style="font-family:var(--font-mono);font-size:11px;color:#888;">'+n.type+'</div>'
+        +'<div style="font-family:var(--font-mono);font-size:11px;color:#888;">'+esc(String(n.type))+'</div>'
         +'</div>';
     }).join('');
   } catch(e){
@@ -6087,11 +6229,11 @@ async function updateNotifBadge(){
   var badge = document.getElementById('notif-badge');
   if(!badge || !currentUser) return;
   try {
-    var res = await fetch(SB_URL + '/rest/v1/notifications?to_user_id=eq.' + currentUser.id + '&status=eq.pending&select=id', {
+    var res = await fetch(SB_URL + '/rest/v1/notifications?to_user_id=eq.' + currentUser.id + '&status=eq.pending&select=id,from_user_id', {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (userToken||SB_KEY) }
     });
     var rows = await res.json();
-    var count = Array.isArray(rows) ? rows.length : 0;
+    var count = Array.isArray(rows) ? rows.filter(function(n){ return !isBlocked(n.from_user_id); }).length : 0;
     if(count > 0){
       badge.style.display = 'block';
       badge.textContent = count > 9 ? '9+' : count;
@@ -6145,6 +6287,7 @@ async function sendFriendRequest(userId, username){
 }
 
 async function acceptFriendRequest(requestId, fromId, fromUsername){
+  fromUsername = ForgeModeration.cleanName(fromUsername);
   if(!state.friends) state.friends = [];
   state.friends.push({ userId: fromId, username: fromUsername, addedAt: Date.now() });
   save();

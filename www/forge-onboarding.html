@@ -527,6 +527,7 @@ html,body{height:100%;background:var(--black);color:var(--white);font-family:var
   <div class="continue-wrap"><button class="btn-continue ready" onclick="if(this.classList.contains('ready')){ goTo('weight') }">Continue</button></div>
 </div>
 
+<script src="moderation.js"></script>
 <script>
 // ── STRIPE CONFIG ──
 var STRIPE_PUBLISHABLE_KEY = 'pk_live_51TM6cCLLD3SG3JwWs9CP7jdBfi0O8yQmLkRuo1xqlWOOXntNAFitqDI7ggbUZePpUZjIXU4LlEttJ1Dhmm2bNbxH00kEJGvfK9';
@@ -1580,6 +1581,7 @@ async function saveUsername(userId, token, raw){
   try {
     var name = String(raw || '').trim();
     if(!name || !token) return;
+    if(ForgeModeration.isOffensiveName(name)) name = 'player';
     var full = name.toLowerCase().replace(/[^a-z0-9]/g,'') + '#' + Math.floor(1000 + Math.random() * 9000);
     var auth = { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token };
     var existingData = {}, hasRow = false;
@@ -1738,6 +1740,10 @@ async function completePayment(){
     }
     if(!username){
       if(errEl) errEl.textContent = 'Please choose a username.';
+      return;
+    }
+    if(ForgeModeration.isOffensiveName(username)){
+      if(errEl) errEl.textContent = "That username isn't allowed. Please pick another.";
       return;
     }
     btn.textContent = 'Creating account...';
