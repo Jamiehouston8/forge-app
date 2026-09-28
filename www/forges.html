@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="interests/interests.css"/>
 <link rel="stylesheet" href="leaderboard/leaderboard.css"/>
 <link rel="stylesheet" href="home/home.css"/>
+<link rel="stylesheet" href="work/work.css"/>
 <style>
 :root {
   --bg:    #0a0a0a;
@@ -1072,6 +1073,9 @@ input:focus,textarea:focus{border-color:#fff;}
 </div>
 
 <div id="page-hustles" class="page">
+  <!-- 2.0 WORK (beta): work/work.js; the old page below is hidden -->
+  <div id="work2-root" style="display:none;"></div>
+  <style>#page-hustles.v2>*:not(#work2-root):not(style){display:none!important;}</style>
   <div class="sg4" style="border-bottom:1px solid #1a1a1a;">
     <div class="sc"><div class="sl">Projects</div><div class="sv" id="sh-count">0</div><div class="su">active</div></div>
     <div class="sc"><div class="sl">Tasks Done</div><div class="sv" id="sh-tasks-done">0</div><div class="su">across all projects</div></div>
@@ -1615,6 +1619,7 @@ input:focus,textarea:focus{border-color:#fff;}
 <script src="mentor/agent.js"></script>
 <script src="leaderboard/leaderboard.js"></script>
 <script src="home/home.js"></script>
+<script src="work/work.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -2369,7 +2374,7 @@ function showPage(name){
   if(navBtn)navBtn.classList.add('active');
   const nav=document.querySelector('.bar-nav');
   if(nav)nav.classList.remove('mob-open');
-  if(name==='hustles'){renderHustles();renderHustleStats();}
+  if(name==='hustles'){renderHustles();renderHustleStats();showWork();}
   if(name==='journal')renderNotes();
   if(name==='mentor')renderMentorPage();
   if(name==='interests'){renderCreativeGrid();renderEducationGrid();renderAIBox();}
@@ -4902,6 +4907,28 @@ function showHome(){
     picsCount:()=>(state.progressPics||[]).length,
   });
   homeMounted=true;
+}
+
+// 2.0 work (work/work.js). The old functions do the ticking/XP; income + new projects here.
+let workMounted=false;
+function showWork(){
+  if(!BETA_ENABLED||typeof ForgeWork==='undefined')return;
+  const el=document.getElementById('work2-root'),page=document.getElementById('page-hustles');
+  if(!el||!page)return;
+  page.classList.add('v2');el.style.display='';
+  if(workMounted){ForgeWork.render();return;}
+  const find=id=>state.hustles.find(h=>h.id===id);
+  ForgeWork.mount(el,{
+    projects:()=>state.hustles||[],
+    toggleTask:(id,i)=>{const h=find(id);if(h&&h.tasks[i])toggleHustleTask(id,i);},
+    editTask:(id,i,v)=>{const h=find(id);if(h&&h.tasks[i]){editHustleTask(id,i,v);renderHustles();}},
+    addTask:id=>{if(find(id))addHustleTask(id);},
+    toggleCollapse:id=>{if(find(id))toggleHustleMinimize(id);},
+    removeProject:id=>{removeHustle(id);renderHustleStats();},
+    addProject:(name,note)=>{state.hustles.push({id:Date.now(),name:name.slice(0,40),income:note.slice(0,60),tasks:[{label:'',done:false},{label:'',done:false},{label:'',done:false}],incomeLogged:0,xpEarned:0});renderHustles();renderHustleStats();save();log('project added: '+name);},
+    logIncome:(id,v)=>{const h=find(id);if(!h||!(v>0))return;h.incomeLogged=(h.incomeLogged||0)+v;renderHustles();renderHustleStats();save();log('income: £'+v+' from '+h.name);},
+  });
+  workMounted=true;
 }
 
 // 2.0 leaderboard (leaderboard/leaderboard.js), same look as Gym. Old layout stays for non-beta.
