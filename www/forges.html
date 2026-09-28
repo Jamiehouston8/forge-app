@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="leaderboard/leaderboard.css"/>
 <link rel="stylesheet" href="home/home.css"/>
 <link rel="stylesheet" href="work/work.css"/>
+<link rel="stylesheet" href="journal/journal.css"/>
 <style>
 :root {
   --bg:    #0a0a0a;
@@ -1097,6 +1098,9 @@ input:focus,textarea:focus{border-color:#fff;}
 
 <!-- JOURNAL -->
 <div id="page-journal" class="page">
+  <!-- 2.0 JOURNAL (beta): journal/journal.js; the old page below is hidden -->
+  <div id="journal2-root" style="display:none;"></div>
+  <style>#page-journal.v2>*:not(#journal2-root):not(style){display:none!important;}</style>
   <div class="pg1" style="border-bottom:1px solid #1a1a1a;">
     <div class="panel">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -1620,6 +1624,7 @@ input:focus,textarea:focus{border-color:#fff;}
 <script src="leaderboard/leaderboard.js"></script>
 <script src="home/home.js"></script>
 <script src="work/work.js"></script>
+<script src="journal/journal.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -2358,6 +2363,7 @@ function mountInterests(){
 }
 
 function showPage(name){
+  if(journalMounted&&name!=='journal')ForgeJournal.leave();
   if(name==='home')showHome();
   if(name==='interests'&&interestsMounted)ForgeInterests.render();
   if(name==='gym'&&!GYM_ENABLED)name='home';
@@ -2375,7 +2381,7 @@ function showPage(name){
   const nav=document.querySelector('.bar-nav');
   if(nav)nav.classList.remove('mob-open');
   if(name==='hustles'){renderHustles();renderHustleStats();showWork();}
-  if(name==='journal')renderNotes();
+  if(name==='journal'){renderNotes();showJournal();}
   if(name==='mentor')renderMentorPage();
   if(name==='interests'){renderCreativeGrid();renderEducationGrid();renderAIBox();}
   if(name==='health'){renderWorkoutExercises();renderDiet();}
@@ -4885,7 +4891,7 @@ function xpBeltInfo(xp){let i=0;while(i+1<XP_LADDER.length&&xp>=XP_LADDER[i+1].a
 xpBeltInfo.ladder=XP_LADDER;
 
 // 2.0 home (home/home.js), same look as Gym. Old home stays for non-beta.
-let homeMounted=false;
+var homeMounted=false;
 const HOME_LISTS={goals:'goals-list',nonneg:'nonneg-list',longterm:'longterm-list'};
 function showHome(){
   if(!BETA_ENABLED||typeof ForgeHome==='undefined')return;
@@ -4910,7 +4916,7 @@ function showHome(){
 }
 
 // 2.0 work (work/work.js). The old functions do the ticking/XP; income + new projects here.
-let workMounted=false;
+var workMounted=false;
 function showWork(){
   if(!BETA_ENABLED||typeof ForgeWork==='undefined')return;
   const el=document.getElementById('work2-root'),page=document.getElementById('page-hustles');
@@ -4931,8 +4937,25 @@ function showWork(){
   workMounted=true;
 }
 
+// 2.0 journal (journal/journal.js). Entries are state.notes, shared with the mentor's add_note.
+var journalMounted=false;
+function showJournal(){
+  if(!BETA_ENABLED||typeof ForgeJournal==='undefined')return;
+  const el=document.getElementById('journal2-root'),page=document.getElementById('page-journal');
+  if(!el||!page)return;
+  page.classList.add('v2');el.style.display='';
+  if(journalMounted){ForgeJournal.render();return;}
+  ForgeJournal.mount(el,{
+    notes:()=>state.notes||[],
+    add:(title,content)=>{const note={id:Date.now(),title:String(title).slice(0,80)||'Untitled',content:content||'',created:new Date().toLocaleDateString('en-GB')};state.notes.unshift(note);activeNote=note.id;renderNotes();save();log('note: '+note.title);return note;},
+    update:(id,p)=>{const n=state.notes.find(n=>n.id===id);if(!n)return;if(p.title!==undefined)n.title=p.title;if(p.content!==undefined)n.content=p.content;save();},
+    remove:id=>{state.notes=state.notes.filter(n=>n.id!==id);if(activeNote===id)activeNote=state.notes.length?state.notes[0].id:null;renderNotes();save();},
+  });
+  journalMounted=true;
+}
+
 // 2.0 leaderboard (leaderboard/leaderboard.js), same look as Gym. Old layout stays for non-beta.
-let boardMounted=false;
+var boardMounted=false;
 function showBoard(){
   const el=document.getElementById('lb2-root');
   if(!el||typeof ForgeBoard==='undefined')return false;
