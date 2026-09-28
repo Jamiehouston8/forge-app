@@ -1162,5 +1162,63 @@ const ForgeGym = (function () {
     return { overall: o ? BELTS.indexOf(o.belt) : null, ranks, workouts7: G.workouts.filter(w => w.end > Date.now() - 7 * DAY).length };
   }
 
-  return { mount, refresh, mentorSummary, render, openTab, weekStats, publicSummary };
+  // ───────── mentor agent tools ─────────
+  // Compact training data for the AI mentor: recent sessions, per-lift trend and
+  // weekly volume. Optionally narrowed to one exercise (id or name, fuzzy).
+  function agentData(days, exercise) {
+    if (!G) return { workouts: 0 };
+    days = Math.max(1, Math.min(90, Number(days) || 28));
+    const since = Date.now() - days * DAY;
+    let exId = null;
+    if (exercise) {
+      const q = String(exercise).toLowerCase();
+      const hit = EXERCISES.find(e => e.id === q) || EXERCISES.find(e => e.name.toLowerCase() === q)
+        || EXERCISES.find(e => e.name.toLowerCase().includes(q) || q.includes(e.name.toLowerCase()));
+      if (!hit) return { error: `No exercise matching "${exercise}".` };
+      exId = hit.id;
+    }
+    const recent = G.workouts.filter(w => w.end >= since);
+    const sessions = recent.slice(-12).map(w => ({
+      date: dayKey(w.end), name: w.name, minutes: Math.round((w.end - w.start) / 60000),
+      lifts: w.exercises.filter(e => !exId || e.id === exId).map(e => ({
+        exercise: EX[e.id] ? EX[e.id].name : e.id,
+        sets: e.sets.map(st => `${Number(st.w) || 0}kg×${st.r}${st.pr ? ' PR' : ''}`).join(', '),
+      })),
+    })).filter(w => w.lifts.length);
+    const ids = exId ? [exId] : [...new Set(recent.flatMap(w => w.exercises.map(e => e.id)))];
+    const lifts = ids.filter(id => EX[id]).map(id => {
+      const ss = liftSessions(id).filter(x => x.t >= since);
+      if (!ss.length) return null;
+      const b = beltFor(id, bestE1rm(id).value);
+      const sug = suggestion(id);
+      return { exercise: EX[id].name, sessions: ss.length,
+        est_max_first: Math.round(ss[0].e1rm), est_max_latest: Math.round(ss[ss.length - 1].e1rm),
+        belt: b ? b.belt.name : null, next_belt_at_est_max: b && b.next ? Math.round(b.needE1rm) : null,
+        coach_next: sug ? sug.text : null };
+    }).filter(Boolean);
+    const vol = weeklySets();
+    return {
+      days, workouts: recent.length, bodyweight_kg: G.bodyweight,
+      overall_belt: (overallRank() || {}).belt ? overallRank().belt.name : 'Unranked',
+      sets_last_7_days: Object.fromEntries(Object.entries(vol).filter(([, v]) => v).map(([m, v]) => [MUSCLES[m], v])),
+      untrained_last_7_days: Object.keys(vol).filter(m => !vol[m]).map(m => MUSCLES[m]),
+      lifts, sessions,
+      templates: allTemplates().map(t => t.name),
+    };
+  }
+  // Save a plan as one of the user's templates (Gym > Train > Your templates).
+  function addTemplate(name, exerciseIds) {
+    if (!G) return { ok: false, message: 'The gym section is not set up yet.' };
+    const ids = [...new Set((exerciseIds || []).filter(id => EX[id] && !EX[id].hidden))].slice(0, 10);
+    const bad = (exerciseIds || []).filter(id => !EX[id]);
+    if (!ids.length) return { ok: false, message: 'None of those exercise ids exist.' + (bad.length ? ' Unknown: ' + bad.join(', ') : '') };
+    name = String(name || 'Mentor plan').trim().slice(0, 30) || 'Mentor plan';
+    const ms = [...new Set(ids.flatMap(id => EX[id].muscles.p))].slice(0, 3).map(m => MUSCLES[m].toLowerCase());
+    G.templates.unshift({ id: 't_' + uid(), name, note: `${ids.length} exercises · ${ms.join(' · ')}`, exercises: ids, by: 'mentor' });
+    save(); render();
+    return { ok: true, message: `Saved "${name}" (${ids.map(id => EX[id].name).join(', ')}) to Gym > Train > Your templates.` + (bad.length ? ` Skipped unknown ids: ${bad.join(', ')}.` : '') };
+  }
+  const exerciseCatalog = () => EXERCISES.filter(e => !e.hidden).map(e => e.id);
+
+  return { mount, refresh, mentorSummary, render, openTab, weekStats, publicSummary, agentData, addTemplate, exerciseCatalog };
 })();

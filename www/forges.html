@@ -1604,6 +1604,7 @@ input:focus,textarea:focus{border-color:#fff;}
 <script src="interests/interests.js"></script>
 <script src="share/share.js"></script>
 <script src="moderation.js"></script>
+<script src="mentor/agent.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -2622,7 +2623,7 @@ function renderMentorPage(){
     box.innerHTML=state.mentorHistory.map(m=>{
       const isUser=m.role==='user';
       const isAction=!isUser&&m.content.startsWith('[ACTION]');
-      let content=(isAction?'✓ '+m.content.slice(8).trim():m.content)
+      let content=esc(isAction?'✓ '+m.content.slice(8).trim():m.content)
         .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
         .replace(/\n\n/g,'</p><p style="margin-top:10px;">')
         .replace(/\n/g,'<br/>');
@@ -2647,7 +2648,10 @@ function toggleMentorDrawer(open){
 // MENTOR — COACHING SYSTEM
 // ══════════════════════════
 
-function buildMentorContext(){
+function buildMentorContext(){const p=mentorPromptParts();return p.fixed+'\n\n'+p.live;}
+// fixed = who the user is + how to coach (changes rarely, so the agent caches it);
+// live = today's numbers and signals (changes every message).
+function mentorPromptParts(){
   const profile=state.profile||{};
   const name=profile.name||'the user';
   const lvl=getLvl(state.xp);
@@ -2688,7 +2692,7 @@ function buildMentorContext(){
   const commitments=history.filter(m=>m.role==='user'&&commitmentWords.some(w=>m.content.toLowerCase().includes(w))).slice(-3).map(m=>m.content);
   const accountabilityNote=commitments.length>0?`COMMITMENTS TO FOLLOW UP ON: The user previously said: "${commitments[commitments.length-1]}". If relevant, check in on this.`:'';
 
-  return `You are an adaptive AI coach inside FORGE — a personal development dashboard.
+  const fixed=`You are an adaptive AI coach inside FORGE — a personal development dashboard.
 
 WHO YOU ARE COACHING:
 Name: ${name}
@@ -2708,6 +2712,24 @@ ${profile.coachStyle==='Supportive'?'Be warm and encouraging. Acknowledge feelin
 ${profile.coachStyle==='Elite'?'Hold them to a high standard. Call out excuses. No comfort zone.':''}
 ${profile.coachStyle==='Hybrid'||!profile.coachStyle?'Read the situation. Be direct when they are avoiding, supportive when they are struggling, analytical when they are planning.':''}
 
+HOW TO RESPOND:
+- Be specific to THIS person, not generic
+- Reference their actual goals and data when relevant
+- Always end with a clear next action or question
+- Call out patterns and excuses when you see them
+- Never shame — redirect and refocus
+- Use this format when appropriate:
+  🔍 Read | ⚠️ Reality Check | ✅ Next Action | 🧠 Key Insight
+
+SPECIALIST MODES — switch naturally when topic changes:
+- Health/fitness questions → Health Coach mode
+- Business/money questions → Business Mentor mode
+- Mindset/motivation → Mindset Coach mode
+- Learning something → Learning Coach mode
+- Just mention the switch briefly and move on`;
+  const now=new Date();
+  const live=`TODAY: ${now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}, ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}
+
 CURRENT STATUS:
 Level ${lvl} (${state.xp} XP) | Streak: ${streak} days
 Goals today: ${goalsDone}/${goalsTotal} — ${goalsCtx}
@@ -2720,23 +2742,8 @@ ${GYM_ENABLED&&typeof ForgeGym!=='undefined'?'Gym: '+ForgeGym.mentorSummary()+'\
 ${momentumState}
 ${patternNote}
 ${accountabilityNote}
-${weeklyNote}
-
-HOW TO RESPOND:
-- Be specific to THIS person, not generic
-- Reference their actual goals and data when relevant
-- Always end with a clear next action or question
-- Call out patterns and excuses when you see them
-- Never shame — redirect and refocus
-- Use this format when appropriate:
-  🔍 Read | ⚠️ Reality Check | ✅ Next Action | 🧠 Key Insight
-
-SPECIALIST MODES — switch naturally when topic changes:
-- Health/fitness questions → Health Coach mode
-- Business/money questions → Business Mentor mode  
-- Mindset/motivation → Mindset Coach mode
-- Learning something → Learning Coach mode
-- Just mention the switch briefly and move on`;
+${weeklyNote}`;
+  return {fixed,live};
 }
 
 // DAILY REVIEW — trigger after 7pm
@@ -2879,6 +2886,104 @@ async function callMentor(messages,sys){
   return res.json();
 }
 
+// MENTOR AGENT (2.0 beta) — mentor/agent.js runs the tool loop; these are the
+// handlers it calls. Read tools return plain data; write tools return {ok,message}.
+function mentorAgentHost(){
+  const gym=GYM_ENABLED&&gymMounted&&typeof ForgeGym!=='undefined'?ForgeGym:null;
+  const dayIdx=d=>ForgeAgent.DAYS.indexOf(d);
+  const clip=(s,n)=>String(s||'').trim().slice(0,n);
+  return {
+    proxyUrl:'https://qkcnyoiaujhxbnszrbmw.supabase.co/functions/v1/claude-proxy',
+    headers:aiHeaders,
+    prompt:mentorPromptParts,
+    exerciseIds:gym?ForgeGym.exerciseCatalog():[],
+    read:{
+      get_progress_history:({days})=>{
+        const n=Math.max(1,Math.min(60,days||14));
+        return {streak:state.streakData?.current||0,best_streak:state.streakData?.best||0,xp:state.xp,level:getLvl(state.xp),
+          today:{goals:state.goals.filter(g=>g.label).map(g=>({label:g.label,done:!!g.done})),non_negotiables:state.nonneg.filter(g=>g.label).map(g=>({label:g.label,done:!!g.done}))},
+          past_days:(state.goalHistory||[]).slice(-n).map(d=>({date:d.date,goals:d.goalsDone+'/'+d.goalsTotal,non_negotiables:d.nnDone+'/'+d.nnTotal}))};
+      },
+      get_gym_data:({days,exercise})=>gym?gym.agentData(days,exercise):{error:'The user has not set up the gym section.'},
+      get_week_plan:()=>{
+        initSched();
+        const week={};
+        ForgeAgent.DAYS.forEach((d,i)=>{const slots=state.schedule[i]||{};const filled=Object.keys(slots).filter(h=>slots[h]&&slots[h].task).map(h=>({hour:+h,task:slots[h].task,done:!!slots[h].done}));if(filled.length)week[d]=filled;});
+        const today=new Date().toISOString().slice(0,10),until=new Date(Date.now()+21*864e5).toISOString().slice(0,10);
+        return {today:ForgeAgent.DAYS[getTodayIdx()],schedule:week,events:(state.events||[]).filter(e=>e.date>=today&&e.date<=until).map(e=>({name:e.name,date:e.date,note:e.note||''}))};
+      },
+      search_notes:({query})=>{
+        const q=String(query||'').toLowerCase();
+        return (state.notes||[]).filter(n=>(n.title+' '+n.content).toLowerCase().includes(q)).slice(0,8).map(n=>({title:n.title,created:n.created,start:clip(n.content,300)}));
+      },
+    },
+    write:{
+      complete_goal:i=>runMentorTool('complete_goal',i),
+      complete_nonnegotiable:i=>runMentorTool('complete_nonnegotiable',i),
+      add_note:i=>runMentorTool('add_note',i),
+      log_health:i=>runMentorTool('log_health',i),
+      add_hustle_task:i=>runMentorTool('add_hustle_task',i),
+      add_goal:({label})=>{
+        label=clip(label,80);
+        if(state.goals.some(g=>g.label&&g.label.toLowerCase()===label.toLowerCase()))return{ok:false,message:`"${label}" is already a goal today.`};
+        const i=state.goals.findIndex(g=>!g.label);
+        if(i<0)return{ok:false,message:'All 5 goal slots are used today. Ask which one to replace.'};
+        state.goals[i]={label,done:false};
+        try{renderChecklist('goals-list');}catch(e){}
+        save();log('goal (mentor): '+label);
+        return{ok:true,message:`Set goal: ${label}`};
+      },
+      schedule_task:({day,hour,task,replace})=>{
+        const di=dayIdx(day);hour=Math.round(hour);
+        if(di<0||!(hour>=6&&hour<=22))return{ok:false,message:'Day must be Monday-Sunday and hour 6-22.'};
+        initSched();
+        const slot=state.schedule[di][hour];
+        if(slot.task&&!replace)return{ok:false,message:`${day} ${hour}:00 already has "${slot.task}". Pick another hour or ask the user.`};
+        state.schedule[di][hour]={task:clip(task,60),done:false};
+        try{renderHourSlots();}catch(e){}
+        save();log('scheduled (mentor): '+day+' '+hour+':00 '+task);
+        return{ok:true,message:`Scheduled ${day} ${hour}:00 · ${clip(task,60)}`};
+      },
+      add_event:({name,date,note})=>{
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(date||'')||isNaN(new Date(date)))return{ok:false,message:'Date must be YYYY-MM-DD.'};
+        if(!state.events)state.events=[];
+        state.events.push({id:Date.now()+Math.random(),name:clip(name,80),date,note:clip(note,300),isNew:true});
+        state.events.sort((a,b)=>a.date.localeCompare(b.date));
+        try{renderEvents();}catch(e){}
+        save();
+        return{ok:true,message:`Added event: ${clip(name,80)} on ${new Date(date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}`};
+      },
+      create_gym_plan:({name,exercises})=>gym?gym.addTemplate(name,exercises):{ok:false,message:'The gym section is not set up.'},
+    },
+  };
+}
+
+async function sendMentorMsgAgent(text,box,loader){
+  const prior=state.mentorHistory.slice(0,-1);
+  const setStatus=t=>{loader.textContent=t;box.scrollTop=box.scrollHeight;};
+  setStatus('Thinking…');
+  try{
+    const out=await ForgeAgent.run(prior,text,mentorAgentHost(),{
+      onStatus:setStatus,
+      onAction:m=>{
+        state.mentorHistory.push({role:'assistant',content:'[ACTION] '+m});
+        const a=document.createElement('div');a.className='msg ai';a.style.cssText='border-left-color:#7b6cff;opacity:0.85;';a.textContent='✓ '+m;
+        box.insertBefore(a,loader);
+      },
+    });
+    loader.remove();
+    state.mentorHistory.push({role:'assistant',content:out.reply});
+    renderMentorPage();
+    setEl('m-msgs',state.mentorHistory.length);
+    log('mentor agent: '+out.actions.length+' action(s)');
+    save();
+  }catch(e){
+    loader.remove();
+    const d=document.createElement('div');d.className='msg ai';d.textContent='⚠ '+(e.message||'The mentor is unavailable right now.');box.appendChild(d);
+    save();
+  }
+}
+
 async function sendMentorMsg(){
   const input=document.getElementById('mentor-page-input');
   const box=document.getElementById('mentor-chat-box');
@@ -2893,6 +2998,7 @@ async function sendMentorMsg(){
   loader.textContent='...';
   box.appendChild(loader);
   box.scrollTop=box.scrollHeight;
+  if(BETA_ENABLED&&typeof ForgeAgent!=='undefined')return sendMentorMsgAgent(text,box,loader);
   const sys=buildMentorContext();
   // Working message list for this turn only — tool_use/tool_result blocks live
   // here, never in state.mentorHistory (which stays plain text, see above).
