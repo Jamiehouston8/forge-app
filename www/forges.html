@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="gym/gym.css"/>
 <link rel="stylesheet" href="interests/interests.css"/>
+<link rel="stylesheet" href="leaderboard/leaderboard.css"/>
 <style>
 :root {
   --bg:    #0a0a0a;
@@ -1605,6 +1606,7 @@ input:focus,textarea:focus{border-color:#fff;}
 <script src="share/share.js"></script>
 <script src="moderation.js"></script>
 <script src="mentor/agent.js"></script>
+<script src="leaderboard/leaderboard.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -2347,7 +2349,7 @@ function showPage(name){
   if(name==='gym'&&!GYM_ENABLED)name='home';
   if(name==='health'&&GYM_ENABLED&&gymMounted){ForgeGym.openTab('recovery');name='gym';}
   if(name==='gym'&&gymMounted)ForgeGym.render();
-  if(name==='leaderboard') setTimeout(loadLeaderboard, 50);
+  if(name==='leaderboard') setTimeout(()=>{ if(!(BETA_ENABLED&&showBoard())) loadLeaderboard(); }, 50);
   if(name==='selfimprove') setTimeout(initRoutineOnCalendar, 300);
   const target=document.getElementById('page-'+name);
   if(!target)return;
@@ -4862,6 +4864,36 @@ async function fetchPublicProfiles(filter){
 // Shape a public profile like the data blob the friend screens were written for.
 // Level and belt come from XP (they were never saved, so cards always said LV 1).
 const XP_BELTS=[['White',0],['Yellow',500],['Orange',1500],['Blue',3000],['Purple',6000],['Brown',10000],['Red',15000],['Black',25000]];
+const XP_BELT_COLORS={White:'#e8e8e8',Yellow:'#ffd166',Orange:'#ff8c42',Blue:'#4d9fff',Purple:'#9b6bff',Brown:'#b07a4f',Red:'#ff4d4d',Black:'#000000'};
+const XP_LADDER=XP_BELTS.map(([name,at])=>({name,at,color:XP_BELT_COLORS[name]}));
+// {name,color,at,next} for the leaderboard's belt chips and journey bar
+function xpBeltInfo(xp){let i=0;while(i+1<XP_LADDER.length&&xp>=XP_LADDER[i+1].at)i++;return Object.assign({},XP_LADDER[i],{next:XP_LADDER[i+1]||null});}
+xpBeltInfo.ladder=XP_LADDER;
+
+// 2.0 leaderboard (leaderboard/leaderboard.js), same look as Gym. Old layout stays for non-beta.
+let boardMounted=false;
+function showBoard(){
+  const el=document.getElementById('lb2-root');
+  if(!el||typeof ForgeBoard==='undefined')return false;
+  ['lb-old-header','lb-loading','lb-list','lb-empty'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
+  el.style.display='';
+  if(boardMounted){ForgeBoard.refresh();return true;}
+  ForgeBoard.mount(el,{
+    load:()=>fetchPublicProfiles(),
+    meId:()=>currentUser?currentUser.id:null,
+    friendIds:()=>(state.friends||[]).map(f=>f.userId),
+    isBlocked,
+    xpBelt:xpBeltInfo,
+    gymBelts:GYM_ENABLED&&typeof BELTS!=='undefined'?BELTS:null,
+    cleanName:ForgeModeration.cleanName,
+    userActions:openUserActions,
+    openProfile:openFriendProfile,
+    addFriend:async name=>{const i=document.getElementById('lb-friend-search');if(i){i.value=name;await lbQuickAddFriend();}},
+    manageFriends:()=>{const fp=document.getElementById('friends-panel');if(!fp)return;const open=fp.style.display!=='block';fp.style.display=open?'block':'none';if(open){renderFriendsList();fp.scrollIntoView({behavior:'smooth'});}},
+  });
+  boardMounted=true;
+  return true;
+}
 function xpBelt(xp){let b='White';for(const [n,at] of XP_BELTS)if(xp>=at)b=n;return b+' Belt';}
 function publicToData(p){
   const level=getLvl(p.xp||0);
@@ -4965,6 +4997,7 @@ function unblockUser(uid){
 }
 function afterBlockChange(){
   if(typeof lbData!=='undefined'&&Array.isArray(lbData))renderLeaderboard(lbData.filter(u=>!isBlocked(u.userId)));
+  if(boardMounted)ForgeBoard.render();
   if(document.getElementById('friends-list'))renderFriendsList();
   renderBlockedList();updateNotifBadge();
   const fp=document.getElementById('friend-profile-modal');if(fp&&fp.style.display==='block'&&isBlocked(window._fpUserId))closeFriendProfile();
@@ -6492,8 +6525,11 @@ async function declineFriendRequest(requestId){
 .lb-footer{background:#0a0a0a;border-top:1px solid #1a1a1a;padding:10px 20px;font-family:var(--font-mono);font-size:10px;color:#333;letter-spacing:0.1em;position:fixed;bottom:0;left:0;right:0;z-index:50;}
 </style>
 
+<!-- 2.0 LEADERBOARD (beta) -->
+<div id="lb2-root" style="display:none;"></div>
+
 <!-- HEADER -->
-<div style="padding:20px 20px 0;border-bottom:1px solid #1a1a1a;margin-bottom:0;">
+<div id="lb-old-header" style="padding:20px 20px 0;border-bottom:1px solid #1a1a1a;margin-bottom:0;">
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding-bottom:16px;">
     <div>
       <div style="font-family:var(--font-mono);font-size:9px;color:#444;letter-spacing:0.3em;margin-bottom:4px;">GLOBAL RANKINGS</div>
