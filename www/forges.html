@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="home/home.css"/>
 <link rel="stylesheet" href="work/work.css"/>
 <link rel="stylesheet" href="journal/journal.css"/>
+<link rel="stylesheet" href="calendar/calendar.css"/>
 <style>
 :root {
   --bg:    #0a0a0a;
@@ -1206,6 +1207,9 @@ input:focus,textarea:focus{border-color:#fff;}
 </div>
 
 <div id="page-selfimprove" class="page">
+  <!-- 2.0 CALENDAR (beta): calendar/calendar.js; the old page below is hidden -->
+  <div id="cal2-root" style="display:none;"></div>
+  <style>#page-selfimprove.v2>*:not(#cal2-root):not(style):not(#add-activity-popup){display:none!important;}</style>
   <div class="dtabs" id="day-tabs"></div>
 
   <!-- TOP INFO BAR: date/clock + now + next + coming up (moved above the calendar) -->
@@ -1625,6 +1629,7 @@ input:focus,textarea:focus{border-color:#fff;}
 <script src="home/home.js"></script>
 <script src="work/work.js"></script>
 <script src="journal/journal.js"></script>
+<script src="calendar/calendar.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -2385,7 +2390,7 @@ function showPage(name){
   if(name==='mentor')renderMentorPage();
   if(name==='interests'){renderCreativeGrid();renderEducationGrid();renderAIBox();}
   if(name==='health'){renderWorkoutExercises();renderDiet();}
-  if(name==='selfimprove'){renderSIPage();renderEvents();}
+  if(name==='selfimprove'){renderSIPage();renderEvents();showCal();}
   if(name==='profile')renderProfilePage();
   if(name==='account')renderAccountPage();
 }
@@ -2928,9 +2933,8 @@ function mentorAgentHost(){
       },
       get_gym_data:({days,exercise})=>gym?gym.agentData(days,exercise):{error:'The user has not set up the gym section.'},
       get_week_plan:()=>{
-        initSched();
         const week={};
-        ForgeAgent.DAYS.forEach((d,i)=>{const slots=state.schedule[i]||{};const filled=Object.keys(slots).filter(h=>slots[h]&&slots[h].task).map(h=>({hour:+h,task:slots[h].task,done:!!slots[h].done}));if(filled.length)week[d]=filled;});
+        ForgeAgent.DAYS.forEach((d,i)=>{const items=calItems(i).map(it=>({time:it.time,task:it.name,done:it.done}));if(items.length)week[d]=items;});
         const today=new Date().toISOString().slice(0,10),until=new Date(Date.now()+21*864e5).toISOString().slice(0,10);
         return {today:ForgeAgent.DAYS[getTodayIdx()],schedule:week,events:(state.events||[]).filter(e=>e.date>=today&&e.date<=until).map(e=>({name:e.name,date:e.date,note:e.note||''}))};
       },
@@ -2958,11 +2962,12 @@ function mentorAgentHost(){
       schedule_task:({day,hour,task,replace})=>{
         const di=dayIdx(day);hour=Math.round(hour);
         if(di<0||!(hour>=6&&hour<=22))return{ok:false,message:'Day must be Monday-Sunday and hour 6-22.'};
-        initSched();
-        const slot=state.schedule[di][hour];
-        if(slot.task&&!replace)return{ok:false,message:`${day} ${hour}:00 already has "${slot.task}". Pick another hour or ask the user.`};
-        state.schedule[di][hour]={task:clip(task,60),done:false};
-        try{renderHourSlots();}catch(e){}
+        const hh=String(hour).padStart(2,'0');
+        const clash=calItems(di).filter(it=>it.time.slice(0,2)===hh);
+        if(clash.length&&!replace)return{ok:false,message:`${day} ${hour}:00 already has "${clash[0].name}". Pick another hour or ask the user.`};
+        clash.forEach(it=>calRemove(it,di));
+        // written as a calendar activity (what the Calendar page shows); blue = planned by the mentor
+        calAddActivity(di,{name:clip(task,60),time:hh+':00',desc:'Planned by your mentor',colour:'blue'});
         save();log('scheduled (mentor): '+day+' '+hour+':00 '+task);
         return{ok:true,message:`Scheduled ${day} ${hour}:00 · ${clip(task,60)}`};
       },
@@ -4952,6 +4957,55 @@ function showJournal(){
     remove:id=>{state.notes=state.notes.filter(n=>n.id!==id);if(activeNote===id)activeNote=state.notes.length?state.notes[0].id:null;renderNotes();save();},
   });
   journalMounted=true;
+}
+
+// 2.0 calendar (calendar/calendar.js). One timeline per day from both plan stores:
+// activities (idealRoutine.dayActivities, what the calendar shows) and the older hour grid (state.schedule).
+var calMounted=false;
+function calItems(di){
+  initSched();
+  const ir=state.idealRoutine||{};
+  const comp=(ir.completions&&ir.completions[new Date().toDateString()])||{};
+  const acts=((ir.dayActivities&&ir.dayActivities['day_'+di])||[]).filter(a=>a&&a.name&&/^\d{1,2}:\d{2}$/.test(a.time||''))
+    .map(a=>({kind:'act',id:a.id,time:a.time.padStart(5,'0'),name:a.name,desc:a.desc||'',colour:a.colour||'white',done:di===getTodayIdx()&&!!comp[a.id]}));
+  const hrs=Object.keys(state.schedule[di]||{}).filter(h=>state.schedule[di][h]&&state.schedule[di][h].task)
+    .map(h=>({kind:'hour',id:+h,time:String(h).padStart(2,'0')+':00',name:state.schedule[di][h].task,desc:'',colour:'white',done:!!state.schedule[di][h].done}));
+  return acts.concat(hrs).sort((a,b)=>a.time.localeCompare(b.time));
+}
+function calAddActivity(di,a){
+  if(!state.idealRoutine)state.idealRoutine={activities:[],setup:true,completions:{}};
+  const ir=state.idealRoutine;if(!ir.dayActivities)ir.dayActivities={};
+  const k='day_'+di;if(!ir.dayActivities[k])ir.dayActivities[k]=[];
+  ir.dayActivities[k].push({id:Date.now()+Math.floor(Math.random()*1000),name:String(a.name).slice(0,60),desc:String(a.desc||'').slice(0,100),time:a.time,colour:a.colour||'white'});
+  ir.dayActivities[k].sort((x,y)=>x.time.localeCompare(y.time));
+  ir.setup=true;
+}
+function calRemove(it,di){
+  if(it.kind==='act'){const k='day_'+di,ir=state.idealRoutine;if(ir&&ir.dayActivities&&ir.dayActivities[k])ir.dayActivities[k]=ir.dayActivities[k].filter(a=>String(a.id)!==String(it.id));}
+  else{initSched();state.schedule[di][it.id]={task:'',done:false};}
+}
+function showCal(){
+  if(!BETA_ENABLED||typeof ForgeCal==='undefined')return;
+  const el=document.getElementById('cal2-root'),page=document.getElementById('page-selfimprove');
+  if(!el||!page)return;
+  page.classList.add('v2');el.style.display='';
+  if(calMounted){ForgeCal.show();return;}
+  ForgeCal.mount(el,{
+    days:DAYS,
+    todayIdx:getTodayIdx,
+    items:calItems,
+    toggle:(it,di)=>{
+      if(it.kind==='act'){if(di===getTodayIdx())markRoutineDone(it.id);}
+      else{const prev=activeSIDay;activeSIDay=di;toggleHourDone(it.id);activeSIDay=prev;}
+    },
+    remove:(it,di)=>{calRemove(it,di);save();},
+    add:(day,a)=>{(day==='all'?[0,1,2,3,4,5,6]:[day]).forEach(d=>calAddActivity(d,a));save();toast(a.name+(day==='all'?' added to every day':' added'),true);},
+    clearDay:di=>{if(state.idealRoutine&&state.idealRoutine.dayActivities)state.idealRoutine.dayActivities['day_'+di]=[];initSched();for(let h=6;h<=22;h++)state.schedule[di][h]={task:'',done:false};save();},
+    events:()=>state.events||[],
+    addEvent:e=>{if(!state.events)state.events=[];state.events.push({id:Date.now(),name:e.name.slice(0,60),date:e.date,note:(e.note||'').slice(0,60),isNew:true});state.events.sort((a,b)=>a.date.localeCompare(b.date));renderEvents();save();},
+    removeEvent:id=>deleteEvent(id),
+  });
+  calMounted=true;
 }
 
 // 2.0 leaderboard (leaderboard/leaderboard.js), same look as Gym. Old layout stays for non-beta.

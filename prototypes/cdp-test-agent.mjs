@@ -95,7 +95,7 @@ try {
   ok('parallel results in ONE user message', res2.length === 3 && res2.every(b => b.type === 'tool_result'), res2.length);
   const clash = res2.find(b => b.tool_use_id === 'tu2');
   ok('clash refused, marked is_error', clash?.is_error === true && /already has "Football"/.test(clash.content), clash && clash.content);
-  ok('free slot scheduled', await ev(`state.schedule[2][7].task === 'Gym: Upper' && state.schedule[0][18].task === 'Football'`));
+  ok('free slot scheduled as a calendar activity', await ev(`state.idealRoutine.dayActivities.day_2.some(a => a.name === 'Gym: Upper' && a.time === '07:00') && state.schedule[0][18].task === 'Football'`));
   ok('gym template saved, unknown id skipped', await ev(`JSON.parse(JSON.stringify(state.gym.templates[0])).name === 'Upper B' && state.gym.templates[0].exercises.join() === 'bench,row,ohp'`));
   const hist = await ev('state.mentorHistory.map(m => m.role + ":" + m.content.slice(0, 40))');
   ok('history: user, 2 actions, reply (plain text only)', hist.length === 4 && hist[1].startsWith('assistant:[ACTION] Scheduled') && hist[2].includes('Saved "Upper B"') && /Done\./.test(hist[3]), hist);
