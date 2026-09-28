@@ -1,0 +1,148 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=430"/>
+<link rel="stylesheet" href="../../www/gym/gym.css"/>
+<style>body{background:#000;margin:0}</style>
+</head><body>
+<div id="app" class="fg-root"></div>
+<pre id="out"></pre>
+<script src="../../www/gym/exercises.js"></script>
+<script src="../../www/gym/bodymap.js"></script>
+<script src="../../www/gym/gym.js"></script>
+<script>
+// Scripted checks for the week-2 gym features. Open with ?shot=<step> to leave
+// the UI in that state for a screenshot. Results go into #out.
+window.confirm = () => true;
+let store = null, xpAwarded = 0, toasts = [];
+const host = {
+  get: () => store && JSON.parse(JSON.stringify(store)),
+  put: d => { store = JSON.parse(JSON.stringify(d)); },
+  toast: m => toasts.push(m),
+  awardXP: n => { xpAwarded += n; },
+  dev: true,
+};
+const results = [];
+const ok = (name, cond, extra) => results.push((cond ? 'PASS ' : 'FAIL ') + name + (extra !== undefined ? '  [' + extra + ']' : ''));
+const app = document.getElementById('app');
+const click = sel => { const el = document.querySelector(sel); if (!el) throw new Error('missing ' + sel); el.click(); };
+const type = (sel, v) => { const el = document.querySelector(sel); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+const shot = new URLSearchParams(location.search).get('shot');
+
+try {
+  ForgeGym.mount(app, host);
+  click('[data-act="settings"]'); click('[data-act="demo"]');
+  const n0 = store.workouts.length, xp0 = store.xp;
+  ok('demo loaded', n0 > 5, n0);
+
+  // Lift progress: history > lifts list, then detail
+  click('[data-tab="history"]'); click('[data-hmode="lifts"]');
+  ok('lifts list rendered', document.querySelectorAll('.lift-item').length >= 10, document.querySelectorAll('.lift-item').length);
+  click('.lift-item[data-lift="bench"]');
+  ok('lift sheet has chart', !!document.querySelector('.fg-sheet .lift-chart'));
+  ok('lift sheet has sessions', document.querySelectorAll('.fg-sheet .lift-row').length > 0);
+  if (shot === 'lift') throw 'stop';
+  click('.fg-sheet [data-act="close"]');
+  click('.lift-item[data-lift="pullup"]');
+  ok('bodyweight lift tracks reps', /BEST REPS/.test(document.querySelector('.fg-sheet').textContent));
+  click('.fg-sheet [data-act="close"]');
+  click('[data-hmode="workouts"]');
+  if (shot === 'lifts') { click('[data-hmode="lifts"]'); throw 'stop'; }
+
+  // Edit a workout: drop its last set
+  const last = store.workouts[store.workouts.length - 1];
+  const setsBefore = last.exercises.reduce((a, e) => a + e.sets.length, 0);
+  document.querySelector(`[data-hist="${last.id}"]`).click();
+  click(`[data-edit="${last.id}"]`);
+  ok('editor opened', !!document.querySelector('.fg-sheet [data-act="ed-save"]'));
+  type('.fg-sheet [data-ed="name"]', 'Edited Push');
+  click('.fg-sheet [data-edrm="0,2"]');
+  type('.fg-sheet [data-ed="w"][data-e="0"][data-s="0"]', '999');
+  if (shot === 'edit') throw 'stop';
+  xpAwarded = 0;
+  click('.fg-sheet [data-act="ed-save"]');
+  const edited = store.workouts.find(w => w.id === last.id);
+  ok('edit saved name', edited.name === 'Edited Push');
+  ok('edit removed a set', edited.exercises.reduce((a, e) => a + e.sets.length, 0) === setsBefore - 1);
+  ok('edited heavy set became PR', edited.exercises[0].sets[0].pr === true);
+  ok('gym xp = sum of workout xp', store.xp === store.workouts.reduce((a, w) => a + w.xp, 0), store.xp);
+  ok('main XP got the delta', xpAwarded === store.xp - xp0, xpAwarded + ' vs ' + (store.xp - xp0));
+
+  // Delete it
+  const xp1 = store.xp;
+  document.querySelector(`[data-hist="${last.id}"]`).click();
+  click(`[data-delw="${last.id}"]`);
+  ok('workout deleted', store.workouts.length === n0 - 1 && !store.workouts.some(w => w.id === last.id));
+  ok('xp came off', store.xp < xp1, xp1 + ' -> ' + store.xp);
+
+  // Save a history workout as a template, start from it
+  const src = store.workouts[store.workouts.length - 1];
+  document.querySelector(`[data-hist="${src.id}"]`).click();
+  click(`[data-tplfrom="${src.id}"]`);
+  type('.fg-sheet .tpl-name', 'My Pull Day');
+  click('.fg-sheet [data-act="tpl-save"]');
+  ok('template saved', store.templates.length === 1 && store.templates[0].name === 'My Pull Day');
+  click('[data-tab="train"]');
+  ok('template shown on Train', /YOUR TEMPLATES/.test(app.textContent) && /My Pull Day/.test(app.textContent));
+  if (shot === 'train') throw 'stop';
+  click(`[data-start="${store.templates[0].id}"]`);
+  ok('workout started from template', store.active && store.active.exercises.length === store.templates[0].exercises.length);
+
+  // Custom exercise from the picker, added to the workout
+  click('[data-act="pick"]');
+  type('.fg-sheet .search', 'Pec Deck');
+  ok('no-match hint', /Create it/.test(document.querySelector('.fg-sheet').textContent));
+  click('.fg-sheet [data-act="nx-open"]');
+  ok('name carried from search', document.querySelector('.fg-sheet .nx-name').value === 'Pec Deck');
+  click('.fg-sheet [data-nxm="chest"]');
+  if (shot === 'newex') throw 'stop';
+  click('.fg-sheet [data-act="nx-save"]');
+  const cx = store.custom[0];
+  ok('custom exercise saved', cx && cx.name === 'Pec Deck' && cx.muscles.p[0] === 'chest');
+  ok('custom added to workout', store.active.exercises.some(e => e.id === cx.id));
+  // log a set on it
+  const ei = store.active.exercises.findIndex(e => e.id === cx.id);
+  type(`[data-in="w"][data-e="${ei}"][data-s="0"]`, '40');
+  type(`[data-in="r"][data-e="${ei}"][data-s="0"]`, '10');
+  click(`[data-chk="${ei},0"]`);
+
+  // Plate calculator on a barbell lift
+  const bi = store.active.exercises.findIndex(e => EX[e.id].bb);
+  click(`[data-plates="${bi}"]`);
+  type('.fg-sheet .plate-in', '102.5');
+  const pl = document.querySelector('.fg-sheet .plate-list').textContent;
+  ok('plates for 102.5 on 20kg bar', pl === '1 × 25kg1 × 15kg1 × 1.25kg', pl);
+  type('.fg-sheet .plate-in', '101');
+  ok('warns when not exact', /Can't make/.test(document.querySelector('.fg-sheet .plate-out').textContent));
+  type('.fg-sheet .plate-in', '100');
+  if (shot === 'plates') throw 'stop';
+  click('.fg-sheet [data-act="close"]');
+
+  // Save the active workout as a template too, then finish
+  click('[data-act="save-tpl"]');
+  click('.fg-sheet [data-act="tpl-save"]');
+  ok('second template from active workout', store.templates.length === 2);
+  click('[data-act="finish"]');
+  click('.fg-sheet [data-act="close"]');
+  ok('custom exercise in history', store.workouts[store.workouts.length - 1].exercises.some(e => e.id === cx.id));
+  if (shot === 'workout') throw 'stop';
+
+  // Remove the custom exercise: used in history, so it's hidden, not deleted
+  click('[data-act="settings"]');
+  click(`.fg-sheet [data-delcx="${cx.id}"]`);
+  ok('used custom is hidden', store.custom[0].hidden === true);
+  ok('history still renders it', (click('[data-act="close"]'), click('[data-tab="history"]'), /Pec Deck/.test(app.innerHTML)));
+
+  // Reload from storage: customs + templates survive
+  ForgeGym.refresh();
+  ok('refresh keeps templates', store.templates.length === 2);
+  ok('refresh keeps custom registered', !!EX[cx.id] && EX[cx.id].hidden);
+  click('[data-tab="ranks"]');
+  click('.rank-row[data-lift]');
+  ok('ranks row opens lift progress', !!document.querySelector('.fg-sheet .lift-chart'));
+  click('.fg-sheet [data-act="close"]');
+} catch (e) {
+  if (e !== 'stop') results.push('ERROR ' + (e && e.stack || e));
+}
+document.getElementById('out').textContent = results.join('\n');
+if (shot) document.getElementById('out').style.display = 'none';
+</script>
+</body></html>

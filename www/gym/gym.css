@@ -159,3 +159,34 @@
 .fg .bw-log { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; }
 .fg .bw-log input { background: var(--fg-bg3); border: 1px solid var(--fg-border); border-radius: 10px; padding: 12px; font-size: 16px; outline: none; min-width: 0; }
 .fg .bw-log .btn { width: auto; padding: 12px 20px; }
+
+/* 2.0 week 2: your templates, lift progress, editing, plates, custom exercises */
+.fg .tpl-wrap { position: relative; }
+.fg .tpl-wrap .tpl { width: 100%; height: 100%; padding-right: 30px; }
+.fg .tpl-x { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 8px; color: #555; font-size: 16px; }
+.fg .ex-title { text-align: left; padding: 0; min-width: 0; }
+.fg .ex-more { color: #555; font-weight: 400; }
+.fg .ex-tools { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.fg .ex-plates { font-size: 11px; letter-spacing: 0.06em; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--fg-border); color: #999; }
+.fg .rank-row[data-lift] { cursor: pointer; }
+.fg .hist-lift { color: #ddd; text-decoration: none; border-bottom: 1px dotted #555; }
+.fg .hist-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.fg .hist-actions button { font-size: 12px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--fg-border); color: #bbb; }
+.fg .hist-actions button.del { border-color: #3a1414; color: #ff6b6b; margin-left: auto; }
+.fg .lift-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 12px 0; border-bottom: 1px solid var(--fg-border); text-align: left; }
+.fg .lift-item:last-child { border-bottom: none; }
+.fg .lift-item b { font-family: var(--fg-ui); font-weight: 600; font-size: 15px; display: block; }
+.fg .lift-item span { font-size: 11px; color: var(--fg-muted); }
+.fg .spark { width: 70px; height: 26px; flex-shrink: 0; }
+.fg .lift-card { padding-bottom: 10px; }
+.fg .lift-chart { width: 100%; height: 120px; display: block; margin: 10px 0 4px; }
+.fg .lift-axis { display: flex; justify-content: space-between; font-size: 10px; color: #555; }
+.fg .lift-row { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--fg-border); font-size: 13px; }
+.fg .lift-row:last-child { border-bottom: none; }
+.fg .lift-row button { font-size: 12px; }
+.fg .chips.wrap { flex-wrap: wrap; overflow: visible; }
+.fg .plate-bar { display: flex; align-items: center; gap: 3px; min-height: 110px; margin: 10px 0; }
+.fg .plate-bar i { width: 14px; border-radius: 3px; display: block; box-shadow: 0 0 0 1px rgba(0,0,0,0.5) inset; }
+.fg .plate-bar b { flex: 1; height: 8px; background: #888; border-radius: 0 4px 4px 0; max-width: 140px; }
+.fg .plate-list { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.fg .plate-list span { background: var(--fg-bg3); border-radius: 8px; padding: 6px 10px; }

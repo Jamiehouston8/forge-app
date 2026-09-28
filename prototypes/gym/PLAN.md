@@ -28,6 +28,14 @@ does the same and opens a tab.
 - **History**: past workouts, tap to expand.
 - **Recovery** (added 27 Sep, replaces the Health page in 2.0): one-tap sleep hours with a 7-night chart, water glasses, bodyweight weigh-ins with a trend line (feeds belt ranks). Writes sleep/water into Forge's `state.health` so the home screen + mentor keep working. Steps/calories dropped for now → Apple Health / Health Connect sync after 2.0; a food database only if nutrition becomes a priority.
 
+**Week 2 set, done 28 Sep (ahead of schedule), live in Forge behind the 2.0 beta:**
+- **Lift progress**: tap any exercise name (in a workout, in History, or a Ranks row) for its chart of estimated max per session, best set, change since your first session, belt target and the last 8 sessions. History has a new **Lifts** view listing every lift with a sparkline. Bodyweight lifts done without added weight chart reps instead.
+- **Edit / delete finished workouts**: open a History card → Edit (rename, change kg/reps, remove sets or exercises, add sets) or Delete. PR flags are re-worked out afterwards. XP changes only for that workout (and goes through to the main Forge XP); older workouts keep what they earned.
+- **Your templates**: "Save as template" from a live workout or any History card. They show under Train → Your templates, × to delete.
+- **Custom exercises**: "+ Create your own exercise" in the picker (the search text becomes the name). Name, main muscle, weights or bodyweight. They count for volume and the body map but don't set a belt. Remove them in gym settings; ones already in your history are hidden, not deleted.
+- **Plate calculator**: a "Plates" button on every barbell lift (`bb: true` in exercises.js) and in gym settings. 20/15/10kg bar, standard plates down to 1.25kg, warns when a weight can't be made exactly.
+- Tests: open `prototypes/gym/test-week2.html` (29 scripted checks; `?shot=lift|lifts|edit|train|newex|plates|workout` leaves that screen up for a screenshot).
+
 Data lives in localStorage under `forge_gym_v1`, shaped as it will be in `state.gym`.
 
 ## Timeline

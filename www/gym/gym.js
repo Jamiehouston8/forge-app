@@ -21,9 +21,26 @@ const ForgeGym = (function () {
   let restTimer = null, clockTimer = null, restEnd = 0, restTotal = 0;
   let lastSummary = null;
   let tab = 'train', bodyMode = 'rank', selectedMuscle = null, pickerFilter = 'all', sleepCustomOpen = false;
+  let historyMode = 'workouts', editing = null, tplSource = null, newEx = null;
 
-  function fresh() { return { bodyweight: 80, rest: 90, xp: 0, workouts: [], active: null, weights: [], recovery: {} }; }
+  function fresh() { return { bodyweight: 80, rest: 90, bar: 20, xp: 0, workouts: [], active: null, weights: [], recovery: {}, custom: [], templates: [] }; }
   function save() { host.put(G); }
+
+  // Load from the host, fill in fields older saves don't have, register custom exercises.
+  function load() {
+    G = Object.assign(fresh(), host.get() || {});
+    ['weights', 'custom', 'templates'].forEach(k => { if (!Array.isArray(G[k])) G[k] = []; });
+    if (!G.recovery) G.recovery = {};
+    syncCustom();
+  }
+  // Custom exercises live in G.custom and are mirrored into EXERCISES / EX so
+  // everything else can treat them like built-in ones. Removed ones that are still
+  // in the history stay registered with hidden: true so old workouts still render.
+  function syncCustom() {
+    for (let i = EXERCISES.length - 1; i >= 0; i--) if (EXERCISES[i].custom) { delete EX[EXERCISES[i].id]; EXERCISES.splice(i, 1); }
+    for (const c of G.custom) { const ex = Object.assign({ std: null }, c, { custom: true }); EXERCISES.push(ex); EX[ex.id] = ex; }
+  }
+  const allTemplates = () => G.templates.concat(TEMPLATES);
   const $ = sel => root.querySelector(sel);
 
   // ───────── maths ─────────
@@ -157,9 +174,9 @@ const ForgeGym = (function () {
 
   // ───────── workout actions ─────────
   function startWorkout(tplId) {
-    const tpl = TEMPLATES.find(t => t.id === tplId);
+    const tpl = allTemplates().find(t => t.id === tplId);
     G.active = { id: uid(), name: tpl ? tpl.name : 'Workout', start: Date.now(), exercises: [] };
-    if (tpl) tpl.exercises.forEach(id => addExercise(id, true));
+    if (tpl) tpl.exercises.filter(id => EX[id]).forEach(id => addExercise(id, true));
     save(); showTab('train');
   }
 
@@ -219,6 +236,261 @@ const ForgeGym = (function () {
   function discardWorkout() {
     if (!confirm('Discard this workout? Nothing will be saved.')) return;
     G.active = null; stopRest(); save(); render();
+  }
+
+  // ───────── editing history ─────────
+  // After an edit or delete, PR flags can move (a later set may now be the PR),
+  // so re-flag them in date order. XP only changes for the workout that was
+  // touched: older workouts keep what they earned (bodyweight lifts' maxes use
+  // today's bodyweight, so re-scoring old sessions would shift XP at random).
+  function reflagPRs() {
+    G.workouts.sort((a, b) => a.end - b.end);
+    const best = {};
+    for (const w of G.workouts) for (const e of w.exercises) for (const s of e.sets) {
+      const v = setE1rm(e.id, s);
+      s.pr = best[e.id] > 0 && v > best[e.id];
+      best[e.id] = Math.max(best[e.id] || 0, v);
+    }
+  }
+  function workoutXP(w) {
+    const sets = w.exercises.reduce((a, e) => a + e.sets.length, 0);
+    const prs = w.exercises.reduce((a, e) => a + e.sets.filter(s => s.pr).length, 0);
+    return sets * XP.set + prs * XP.pr + XP.finish;
+  }
+  function applyXPDelta(delta, reason) {
+    G.xp = Math.max(0, G.xp + delta);
+    save(); render();
+    if (delta && host.awardXP) host.awardXP(delta, reason);
+  }
+
+  function deleteWorkout(id) {
+    const w = G.workouts.find(x => x.id === id);
+    if (!w || !confirm(`Delete "${w.name}" from ${fmtDate(w.end)}? Its XP comes off too.`)) return;
+    G.workouts = G.workouts.filter(x => x.id !== id);
+    reflagPRs();
+    applyXPDelta(-(w.xp || 0), 'Workout deleted');
+    host.toast('Workout deleted');
+  }
+
+  function openEditor(id) {
+    const w = G.workouts.find(x => x.id === id);
+    if (!w) return;
+    editing = JSON.parse(JSON.stringify(w));
+    renderEditor();
+  }
+  function renderEditor() {
+    const w = editing;
+    openSheet(`<div class="sheet-title">EDIT WORKOUT <button data-act="close">✕</button></div>
+      <div class="field"><label>NAME</label><input data-ed="name" value="${esc(w.name)}"/></div>
+      <div class="small muted" style="margin:-6px 0 12px">${fmtDate(w.end)} · ${fmtDur(w.end - w.start)}</div>
+      ${w.exercises.map((e, ei) => `<div class="ex">
+        <div class="ex-head"><div class="ex-name">${esc(EX[e.id].name)}</div><button class="ex-x" data-edrmex="${ei}" aria-label="Remove exercise">×</button></div>
+        <table class="sets">
+          <tr><th>SET</th><th>${EX[e.id].bw ? '+KG' : 'KG'}</th><th>REPS</th><th></th></tr>
+          ${e.sets.map((s, si) => `<tr>
+            <td class="n">${si + 1}</td>
+            <td><input inputmode="decimal" data-ed="w" data-e="${ei}" data-s="${si}" value="${s.w}" placeholder="0"/></td>
+            <td><input inputmode="numeric" data-ed="r" data-e="${ei}" data-s="${si}" value="${s.r}" placeholder="0"/></td>
+            <td><button class="chk" data-edrm="${ei},${si}" aria-label="Remove set">×</button></td>
+          </tr>`).join('')}
+        </table>
+        <button class="add-set" data-edadd="${ei}">+ ADD SET</button>
+      </div>`).join('')}
+      <button class="btn btn-primary" data-act="ed-save">Save changes</button>
+      <button class="btn btn-ghost" data-act="close">Cancel</button>`);
+  }
+  function saveEditor() {
+    const w = editing;
+    w.name = (w.name || '').trim() || 'Workout';
+    w.exercises = w.exercises
+      .map(e => ({ id: e.id, sets: e.sets.filter(s => Number(s.r) > 0).map(s => ({ w: s.w === '' ? 0 : s.w, r: Number(s.r), done: true })) }))
+      .filter(e => e.sets.length);
+    if (!w.exercises.length) { host.toast('No sets left. Use Delete to remove the workout.'); return; }
+    const i = G.workouts.findIndex(x => x.id === w.id);
+    if (i < 0) return;
+    const oldXP = G.workouts[i].xp || 0;
+    G.workouts[i] = w;
+    reflagPRs();
+    w.xp = workoutXP(w);
+    editing = null;
+    closeSheet();
+    applyXPDelta(w.xp - oldXP, 'Workout edited');
+    host.toast('Workout saved');
+  }
+
+  // ───────── your templates ─────────
+  function openSaveTemplate(fromId) {
+    const src = fromId ? G.workouts.find(w => w.id === fromId) : G.active;
+    if (!src || !src.exercises.length) { host.toast('Add some exercises first'); return; }
+    tplSource = [...new Set(src.exercises.map(e => e.id))];
+    openSheet(`<div class="sheet-title">SAVE AS TEMPLATE <button data-act="close">✕</button></div>
+      <div class="field"><label>TEMPLATE NAME</label><input class="tpl-name" maxlength="30" value="${esc(src.name)}"/></div>
+      <div class="small muted" style="margin-bottom:14px;line-height:1.6">${tplSource.map(id => esc(EX[id].name)).join(' · ')}</div>
+      <button class="btn btn-primary" data-act="tpl-save">Save template</button>`);
+  }
+  function saveTemplate() {
+    const name = (sheet.querySelector('.tpl-name').value || '').trim();
+    if (!name) { host.toast('Give it a name'); return; }
+    const ms = [...new Set(tplSource.flatMap(id => EX[id].muscles.p))].slice(0, 3).map(m => MUSCLES[m].toLowerCase());
+    G.templates.unshift({ id: 't_' + uid(), name, note: `${tplSource.length} exercises · ${ms.join(' · ')}`, exercises: tplSource });
+    save(); closeSheet(); render();
+    host.toast('Template saved. Find it under Train.');
+  }
+  function deleteTemplate(id) {
+    const t = G.templates.find(x => x.id === id);
+    if (!t || !confirm(`Delete the "${t.name}" template? Past workouts stay.`)) return;
+    G.templates = G.templates.filter(x => x.id !== id);
+    save(); render();
+  }
+
+  // ───────── custom exercises ─────────
+  function openNewExercise() {
+    newEx = newEx || { name: (sheet.querySelector('.search') || {}).value || '', p: pickerFilter !== 'all' ? pickerFilter : null, bw: false };
+    openSheet(`<div class="sheet-title">NEW EXERCISE <button data-act="pick-back">←</button></div>
+      <div class="field"><label>NAME</label><input class="nx-name" maxlength="40" placeholder="e.g. Pec Deck" value="${esc(newEx.name)}"/></div>
+      <div class="field"><label>MAIN MUSCLE</label>
+        <div class="chips wrap">${Object.keys(MUSCLES).map(m => `<button data-nxm="${m}" class="${newEx.p === m ? 'active' : ''}">${MUSCLES[m]}</button>`).join('')}</div></div>
+      <div class="field"><label>TYPE</label>
+        <div class="seg"><button data-nxbw="0" class="${newEx.bw ? '' : 'active'}">Weights</button><button data-nxbw="1" class="${newEx.bw ? 'active' : ''}">Bodyweight</button></div></div>
+      <button class="btn btn-primary" data-act="nx-save">${G.active ? 'Create and add' : 'Create exercise'}</button>
+      <div class="small muted" style="margin-top:10px;line-height:1.6">Custom exercises count toward your weekly volume and body map, but don't set a belt rank.</div>`);
+  }
+  function saveNewExercise() {
+    const name = newEx.name.trim();
+    if (!name) { host.toast('Give it a name'); return; }
+    if (!newEx.p) { host.toast('Pick the main muscle'); return; }
+    if (EXERCISES.some(e => !e.hidden && e.name.toLowerCase() === name.toLowerCase())) { host.toast('That exercise already exists'); return; }
+    const c = { id: 'c_' + uid(), name, muscles: { p: [newEx.p], s: [] }, bw: newEx.bw };
+    G.custom.push(c);
+    syncCustom();
+    newEx = null;
+    if (G.active) { addExercise(c.id); closeSheet(); host.toast(name + ' added'); }
+    else { save(); closeSheet(); host.toast('Exercise created'); }
+  }
+  function removeCustom(id) {
+    const c = G.custom.find(x => x.id === id);
+    if (!c || !confirm(`Remove "${c.name}"? Past workouts keep it.`)) return;
+    const used = G.workouts.some(w => w.exercises.some(e => e.id === id)) || (G.active && G.active.exercises.some(e => e.id === id));
+    if (used) c.hidden = true; else G.custom = G.custom.filter(x => x.id !== id);
+    G.templates.forEach(t => { t.exercises = t.exercises.filter(x => x !== id); });
+    G.templates = G.templates.filter(t => t.exercises.length);
+    syncCustom(); save(); openSettings(); render();
+  }
+
+  // ───────── lift progress ─────────
+  // One point per session: the best set by estimated max. Bodyweight lifts done
+  // without added weight track reps instead (an est. max of a plank means nothing).
+  function liftSessions(exId) {
+    const out = [];
+    for (const w of G.workouts) {
+      const sets = w.exercises.filter(e => e.id === exId).flatMap(e => e.sets.filter(s => s.done));
+      if (!sets.length) continue;
+      const top = sets.reduce((a, s) => (setE1rm(exId, s) > setE1rm(exId, a) ? s : a));
+      out.push({ t: w.end, top, e1rm: setE1rm(exId, top), reps: Math.max(...sets.map(s => Number(s.r) || 0)), sets: sets.length, pr: sets.some(s => s.pr),
+        vol: sets.reduce((a, s) => a + setLoad(exId, s) * (Number(s.r) || 0), 0) });
+    }
+    return out.sort((a, b) => a.t - b.t);
+  }
+  const liftMetric = (exId, ss) => EX[exId].bw && ss.every(x => !Number(x.top.w)) ? 'reps' : 'e1rm';
+  const setText = (exId, s) => EX[exId].bw && !Number(s.w) ? `${s.r} reps` : `${Number(s.w) || 0}kg × ${s.r}`;
+
+  function lineChart(vals, W, H, opts) {
+    opts = opts || {};
+    if (vals.length < 2) return '';
+    let min = Math.min(...vals), max = Math.max(...vals);
+    if (max - min < 1) { min -= 1; max += 1; }
+    const pad = opts.dots ? 8 : 3;
+    const xy = vals.map((v, i) => [pad + i / (vals.length - 1) * (W - pad * 2), H - pad - (v - min) / (max - min) * (H - pad * 2)]);
+    const pts = xy.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ');
+    const area = opts.area ? `<polygon points="${xy[0][0].toFixed(1)},${H} ${pts} ${xy[xy.length - 1][0].toFixed(1)},${H}" fill="rgba(124,108,255,0.12)"/>` : '';
+    const dots = opts.dots ? xy.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" fill="#7c6cff"/>`).join('') : '';
+    return `<svg viewBox="0 0 ${W} ${H}" class="${opts.cls || ''}" preserveAspectRatio="none">${area}<polyline points="${pts}" fill="none" stroke="#7c6cff" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${dots}</svg>`;
+  }
+
+  function openLift(exId) {
+    const ex = EX[exId];
+    if (!ex) return;
+    const ss = liftSessions(exId);
+    if (!ss.length) {
+      openSheet(`<div class="sheet-title">${esc(ex.name.toUpperCase())} <button data-act="close">✕</button></div>
+        <div class="empty">No finished sets yet.<br/>Your progress chart starts after your first session.</div>`);
+      return;
+    }
+    const metric = liftMetric(exId, ss);
+    const vals = ss.map(x => metric === 'reps' ? x.reps : Math.round(x.e1rm * 10) / 10);
+    const fmt = v => metric === 'reps' ? v + ' reps' : fmtKg(v);
+    const best = ss.reduce((a, x) => (x.e1rm > a.e1rm ? x : a));
+    const first = vals[0], last = vals[vals.length - 1], peak = Math.max(...vals);
+    const change = last - first;
+    const belt = metric === 'e1rm' ? beltFor(exId, bestE1rm(exId).value) : null;
+    openSheet(`<div class="sheet-title">${esc(ex.name.toUpperCase())} <button data-act="close">✕</button></div>
+      <div class="small muted" style="margin:-8px 0 12px">${musclesOf(exId)}${ex.custom ? ' · custom' : ''}</div>
+      <div class="sum-grid">
+        <div><b>${fmt(peak)}</b><span>${metric === 'reps' ? 'BEST REPS' : 'EST. MAX'}</span></div>
+        <div><b style="color:${change > 0 ? 'var(--fg-good)' : change < 0 ? 'var(--fg-pr)' : '#fff'}">${change > 0 ? '+' : ''}${metric === 'reps' ? change : fmtKg(change)}</b><span>SINCE FIRST</span></div>
+        <div><b>${ss.length}</b><span>SESSIONS</span></div>
+      </div>
+      <div class="card lift-card">
+        <div class="small muted">${metric === 'reps' ? 'Most reps' : 'Estimated one-rep max'} per session</div>
+        ${ss.length > 1 ? lineChart(vals, 300, 120, { cls: 'lift-chart', dots: true, area: true }) : '<div class="small muted" style="padding:24px 0;text-align:center">One more session and your chart appears.</div>'}
+        <div class="lift-axis"><span>${fmtDate(ss[0].t)}</span><span>${fmtDate(ss[ss.length - 1].t)}</span></div>
+      </div>
+      <div class="card small" style="line-height:1.7">
+        Best set: <b>${setText(exId, best.top)}</b> · ${fmtDate(best.t)}
+        ${belt ? `<br/>Belt: ${belt.belt.name}${belt.next ? ` · ${belt.next.name} at est. max ${fmtKg(belt.needE1rm)}` : ' · top rank'}` : ''}
+        ${suggestion(exId) ? `<br/><span class="c-xp">Coach: ${esc(suggestion(exId).text)}</span>` : ''}
+      </div>
+      <h2>RECENT SESSIONS</h2>
+      <div class="card" style="padding:4px 14px">${ss.slice(-8).reverse().map(x => `<div class="lift-row">
+        <span>${fmtDate(x.t)}</span><span>${setText(exId, x.top)}${x.pr ? ' <span class="c-pr">★</span>' : ''}</span><span class="muted">${x.sets} set${x.sets > 1 ? 's' : ''}</span></div>`).join('')}</div>`);
+  }
+
+  function liftsHTML() {
+    const ids = [...new Set(G.workouts.flatMap(w => w.exercises.map(e => e.id)))].filter(id => EX[id]);
+    if (!ids.length) return '<div class="empty">No lifts yet.</div>';
+    const rows = ids.map(id => ({ id, ss: liftSessions(id) })).filter(r => r.ss.length)
+      .sort((a, b) => b.ss[b.ss.length - 1].t - a.ss[a.ss.length - 1].t);
+    return `<div class="card" style="padding:4px 14px">${rows.map(({ id, ss }) => {
+      const metric = liftMetric(id, ss);
+      const vals = ss.slice(-10).map(x => metric === 'reps' ? x.reps : x.e1rm);
+      const peak = Math.max(...ss.map(x => metric === 'reps' ? x.reps : x.e1rm));
+      return `<button class="lift-item" data-lift="${id}">
+        <div><b>${esc(EX[id].name)}</b><span>${ss.length} session${ss.length > 1 ? 's' : ''} · ${metric === 'reps' ? peak + ' reps best' : 'est. max ' + fmtKg(peak)}</span></div>
+        ${lineChart(vals, 70, 26, { cls: 'spark' })}</button>`;
+    }).join('')}</div>`;
+  }
+
+  // ───────── plate calculator ─────────
+  const PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+  const PLATE_COLORS = { 25: '#e0453a', 20: '#3b7ddd', 15: '#e8c33a', 10: '#3ba55c', 5: '#eeeeee', 2.5: '#555555', 1.25: '#999999' };
+  function platesFor(total, bar) {
+    let side = (total - bar) / 2;
+    const out = [];
+    if (side < 0) return { out, left: side };
+    for (const p of PLATES) while (side >= p - 1e-9) { out.push(p); side -= p; }
+    return { out, left: Math.round(side * 100) / 100 };
+  }
+  function openPlates(kg) {
+    openSheet(`<div class="sheet-title">PLATE CALCULATOR <button data-act="close">✕</button></div>
+      <div class="field"><label>TOTAL WEIGHT (KG)</label><input class="plate-in" inputmode="decimal" value="${kg || ''}" placeholder="e.g. 100"/></div>
+      <div class="field"><label>BAR</label><div class="seg">${[20, 15, 10].map(b => `<button data-bar="${b}" class="${G.bar === b ? 'active' : ''}">${b}kg</button>`).join('')}</div></div>
+      <div class="plate-out"></div>`);
+    renderPlates();
+  }
+  function renderPlates() {
+    const out = sheet.querySelector('.plate-out');
+    if (!out) return;
+    const kg = parseFloat((sheet.querySelector('.plate-in').value || '').replace(',', '.'));
+    if (!(kg > 0)) { out.innerHTML = '<div class="small muted">Enter a weight to see what goes on each side.</div>'; return; }
+    const r = platesFor(kg, G.bar);
+    if (r.left < 0) { out.innerHTML = `<div class="small muted">That's less than the ${G.bar}kg bar.</div>`; return; }
+    const loaded = G.bar + 2 * r.out.reduce((a, p) => a + p, 0);
+    out.innerHTML = `<div class="card">
+      <div class="small muted">EACH SIDE</div>
+      <div class="plate-bar">${r.out.length ? r.out.map(p => `<i style="height:${40 + p * 2.4}px;background:${PLATE_COLORS[p]}" title="${p}kg"></i>`).join('') : '<span class="small muted">Just the bar.</span>'}<b></b></div>
+      <div class="plate-list">${r.out.length ? Object.entries(r.out.reduce((a, p) => (a[p] = (a[p] || 0) + 1, a), {})).sort((a, b) => b[0] - a[0]).map(([p, n]) => `<span>${n} × ${p}kg</span>`).join('') : ''}</div>
+      ${r.left > 0 ? `<div class="small c-pr" style="margin-top:8px">Can't make ${fmtKg(kg)} exactly with standard plates. Closest: ${fmtKg(loaded)}.</div>` : ''}
+    </div>`;
   }
 
   // ───────── recovery (sleep, water, bodyweight) ─────────
@@ -308,6 +580,10 @@ const ForgeGym = (function () {
   function trainHTML() {
     if (!G.active) {
       return `${coachCard()}
+        ${G.templates.length ? `<h2>YOUR TEMPLATES</h2>
+        <div class="grid2">
+          ${G.templates.map(t => `<div class="tpl-wrap"><button class="tpl" data-start="${t.id}"><b>${esc(t.name)}</b><span>${esc(t.note)}</span></button><button class="tpl-x" data-deltpl="${t.id}" aria-label="Delete template">×</button></div>`).join('')}
+        </div>` : ''}
         <h2>START A WORKOUT</h2>
         <div class="grid2">
           ${TEMPLATES.map(t => `<button class="tpl" data-start="${t.id}"><b>${t.name}</b><span>${t.note}</span></button>`).join('')}
@@ -324,6 +600,7 @@ const ForgeGym = (function () {
       ${w.exercises.map((e, ei) => exerciseCard(e, ei)).join('')}
       <button class="btn btn-ghost" data-act="pick">+ Add exercise</button>
       <button class="btn btn-primary" style="margin-top:18px" data-act="finish">Finish workout</button>
+      ${w.exercises.length ? '<button class="btn btn-ghost" data-act="save-tpl">Save as template</button>' : ''}
       <button class="btn btn-danger" data-act="discard">Discard</button>`;
   }
 
@@ -333,8 +610,8 @@ const ForgeGym = (function () {
     const s = suggestion(e.id);
     return `<div class="ex">
       <div class="ex-head">
-        <div><div class="ex-name">${esc(ex.name)}</div><div class="ex-musc">${musclesOf(e.id)}${ex.bw ? ' · + bodyweight' : ''}</div></div>
-        <button class="ex-x" data-rmex="${ei}" aria-label="Remove">×</button>
+        <button class="ex-title" data-lift="${e.id}"><div class="ex-name">${esc(ex.name)} <span class="ex-more">›</span></div><div class="ex-musc">${musclesOf(e.id)}${ex.bw ? ' · + bodyweight' : ''}</div></button>
+        <div class="ex-tools">${ex.bb ? `<button class="ex-plates" data-plates="${ei}">Plates</button>` : ''}<button class="ex-x" data-rmex="${ei}" aria-label="Remove">×</button></div>
       </div>
       ${s ? `<div class="ex-hint">Coach: ${esc(s.text)}</div>` : ''}
       <table class="sets">
@@ -420,7 +697,7 @@ const ForgeGym = (function () {
       </div>
       <h2>MUSCLE RANKS</h2>
       <div class="card" style="padding:4px 14px">
-        ${rows.map(({ m, r }) => `<div class="rank-row">
+        ${rows.map(({ m, r }) => `<div class="rank-row"${r ? ` data-lift="${r.exId}"` : ''}>
           <div class="m">${MUSCLES[m]}</div>${beltChip(r && r.belt)}
           <div class="d">${r ? `${EX[r.exId].name} · est. max ${fmtKg(r.e1rm)}${r.next ? ` · ${fmtKg(Math.max(0, r.needE1rm - r.e1rm))} to ${r.next.name}` : ' · top rank'}` : 'No ranked lift yet'}</div>
           <div class="bar"><div style="width:${r ? Math.round(r.progress * 100) : 0}%;background:${r ? (r.next ? r.next.color : r.belt.color) : '#333'}"></div></div>
@@ -499,14 +776,20 @@ const ForgeGym = (function () {
 
   function historyHTML() {
     if (!G.workouts.length) return '<div class="empty">No workouts yet.<br/>Finished workouts show up here.</div>';
-    return '<h2>HISTORY</h2>' + G.workouts.slice().reverse().map(w => {
+    const head = `<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px">
+        <h2 style="margin:0">HISTORY</h2>
+        <div class="seg"><button data-hmode="workouts" class="${historyMode === 'workouts' ? 'active' : ''}">Workouts</button><button data-hmode="lifts" class="${historyMode === 'lifts' ? 'active' : ''}">Lifts</button></div>
+      </div>`;
+    if (historyMode === 'lifts') return head + liftsHTML();
+    return head + G.workouts.slice().reverse().map(w => {
       const sets = w.exercises.reduce((a, e) => a + e.sets.length, 0);
       const prs = w.exercises.reduce((a, e) => a + e.sets.filter(s => s.pr).length, 0);
       const vol = w.exercises.reduce((a, e) => a + e.sets.reduce((b, s) => b + setLoad(e.id, s) * s.r, 0), 0);
       return `<div class="card hist" data-hist="${w.id}">
         <div class="hist-top"><div class="hist-name">${esc(w.name)}</div><div class="hist-date">${fmtDate(w.end)}</div></div>
         <div class="hist-meta"><span>${fmtDur(w.end - w.start)}</span><span>${sets} sets</span><span>${Math.round(vol).toLocaleString()} kg</span>${prs ? `<span class="c-pr">${prs} PR${prs > 1 ? 's' : ''}</span>` : ''}<span class="c-xp">+${w.xp} XP</span></div>
-        <div class="hist-body hidden">${w.exercises.map(e => `${esc(EX[e.id].name)}: ${e.sets.map(s => `${Number(s.w) || 0}×${s.r}${s.pr ? '★' : ''}`).join(', ')}`).join('<br/>')}</div>
+        <div class="hist-body hidden">${w.exercises.map(e => `<a href="#" class="hist-lift" data-lift="${e.id}">${esc(EX[e.id].name)}</a>: ${e.sets.map(s => `${Number(s.w) || 0}×${s.r}${s.pr ? '★' : ''}`).join(', ')}`).join('<br/>')}
+          <div class="hist-actions"><button data-edit="${w.id}">Edit</button><button data-tplfrom="${w.id}">Save as template</button><button class="del" data-delw="${w.id}">Delete</button></div></div>
       </div>`;
     }).join('');
   }
@@ -554,17 +837,18 @@ const ForgeGym = (function () {
     openSheet(`<div class="sheet-title">ADD EXERCISE <button data-act="close">✕</button></div>
       <input class="search" placeholder="Search exercises" autocomplete="off"/>
       <div class="chips">${['all', ...Object.keys(MUSCLES)].map(m => `<button data-filter="${m}" class="${pickerFilter === m ? 'active' : ''}">${m === 'all' ? 'All' : MUSCLES[m]}</button>`).join('')}</div>
-      <div class="pick-list"></div>`);
+      <div class="pick-list"></div>
+      <button class="btn btn-ghost" style="margin-top:12px" data-act="nx-open">+ Create your own exercise</button>`);
     renderPickList();
     sheet.querySelector('.search').addEventListener('input', renderPickList);
   }
   function renderPickList() {
     const q = (sheet.querySelector('.search') || {}).value || '';
-    const list = EXERCISES.filter(e => (pickerFilter === 'all' || e.muscles.p.includes(pickerFilter) || e.muscles.s.includes(pickerFilter))
+    const list = EXERCISES.filter(e => !e.hidden && (pickerFilter === 'all' || e.muscles.p.includes(pickerFilter) || e.muscles.s.includes(pickerFilter))
       && e.name.toLowerCase().includes(q.toLowerCase()));
     sheet.querySelector('.pick-list').innerHTML = list.map(e => `<button class="pick" data-pick="${e.id}">
-        <div><b>${esc(e.name)}</b><span>${musclesOf(e.id)}</span></div><span>${e.std ? '★ ranked' : ''}</span></button>`).join('')
-      || '<div class="empty">No matches.</div>';
+        <div><b>${esc(e.name)}</b><span>${musclesOf(e.id)}</span></div><span>${e.std ? '★ ranked' : e.custom ? 'custom' : ''}</span></button>`).join('')
+      || `<div class="empty">No matches.${q ? '<br/>Create it with the button below.' : ''}</div>`;
   }
 
   function openSettings() {
@@ -572,6 +856,8 @@ const ForgeGym = (function () {
       <div class="field"><label>BODYWEIGHT (KG)</label><input class="set-bw" inputmode="decimal" value="${G.bodyweight}"/></div>
       <div class="field"><label>REST TIMER (SECONDS)</label><input class="set-rest" inputmode="numeric" value="${G.rest}"/></div>
       <button class="btn btn-primary" data-act="save-settings">Save</button>
+      <button class="btn btn-ghost" data-plates="">Plate calculator</button>
+      ${G.custom.some(c => !c.hidden) ? `<h2>YOUR EXERCISES</h2><div class="card" style="padding:4px 14px">${G.custom.filter(c => !c.hidden).map(c => `<div class="lift-row"><span>${esc(c.name)}</span><span class="muted">${MUSCLES[c.muscles.p[0]]}</span><button class="c-pr" data-delcx="${c.id}">Remove</button></div>`).join('')}</div>` : ''}
       ${host.dev ? `<h2>PROTOTYPE TOOLS</h2>
       <button class="btn btn-ghost" data-act="demo">Load 5 weeks of demo data</button>
       <button class="btn btn-danger" data-act="reset">Reset all gym data</button>` : ''}`);
@@ -613,13 +899,13 @@ const ForgeGym = (function () {
     const weights = [], recovery = {};
     for (let wk = 5; wk >= 0; wk--) weights.push({ date: dayKey(now - wk * 7 * DAY), kg: Math.round((82.4 - (5 - wk) * 0.3) * 10) / 10 });
     [7, 6.5, 8, 7.5, 6, 7, 8, 7.5, 6.5, 7].forEach((h, i) => { recovery[dayKey(now - (i + 1) * DAY)] = { sleep: h, water: 5 + (i % 4) }; });
-    G = Object.assign(fresh(), { bodyweight: weights[weights.length - 1].kg, rest: G.rest, workouts, weights, recovery, xp: workouts.reduce((a, w) => a + w.xp, 0) });
+    G = Object.assign(fresh(), { bodyweight: weights[weights.length - 1].kg, rest: G.rest, bar: G.bar, custom: G.custom, templates: G.templates, workouts, weights, recovery, xp: workouts.reduce((a, w) => a + w.xp, 0) });
     save(); closeSheet(); render(); host.toast('Demo data loaded');
   }
 
   // ───────── events ─────────
   function onClick(ev) {
-    const t = ev.target.closest('button, a, [data-hist], polygon');
+    const t = ev.target.closest('button, a, [data-lift], [data-hist], polygon');
     if (!t) { if (ev.target === sheet) closeSheet(); return; }
     const d = t.dataset;
     if (d.tab) return showTab(d.tab);
@@ -640,6 +926,28 @@ const ForgeGym = (function () {
     if (d.m) { selectedMuscle = selectedMuscle === d.m ? null : d.m; return render(); }
     if (d.sleep) { sleepCustomOpen = false; return setRecovery({ sleep: Number(d.sleep) }); }
     if (d.water) return setRecovery({ water: Math.max(0, todayRecovery().water + Number(d.water)) });
+    if (d.lift) { ev.preventDefault(); return openLift(d.lift); }
+    if (d.hmode) { historyMode = d.hmode; return render(); }
+    if (d.edit) return openEditor(d.edit);
+    if (d.delw) return deleteWorkout(d.delw);
+    if (d.tplfrom) return openSaveTemplate(d.tplfrom);
+    if (d.deltpl) return deleteTemplate(d.deltpl);
+    if (d.delcx) return removeCustom(d.delcx);
+    if ('plates' in d) {
+      let kg = '';
+      if (d.plates !== '' && G.active) {
+        const sets = G.active.exercises[+d.plates].sets;
+        const s = sets.find(x => !x.done && Number(x.w)) || sets.filter(x => Number(x.w)).pop();
+        kg = s ? s.w : '';
+      }
+      return openPlates(kg);
+    }
+    if (d.bar) { G.bar = Number(d.bar); save(); sheet.querySelectorAll('[data-bar]').forEach(b => b.classList.toggle('active', b === t)); return renderPlates(); }
+    if (d.nxm) { newEx.p = d.nxm; sheet.querySelectorAll('[data-nxm]').forEach(b => b.classList.toggle('active', b === t)); return; }
+    if (d.nxbw) { newEx.bw = d.nxbw === '1'; sheet.querySelectorAll('[data-nxbw]').forEach(b => b.classList.toggle('active', b === t)); return; }
+    if (d.edrm) { const [e, s] = d.edrm.split(',').map(Number); editing.exercises[e].sets.splice(s, 1); if (!editing.exercises[e].sets.length) editing.exercises.splice(e, 1); return renderEditor(); }
+    if (d.edrmex) { editing.exercises.splice(+d.edrmex, 1); return renderEditor(); }
+    if (d.edadd) { const sets = editing.exercises[+d.edadd].sets, l = sets[sets.length - 1]; sets.push({ w: l ? l.w : '', r: l ? l.r : '', done: true }); return renderEditor(); }
     if (d.hist) { t.querySelector('.hist-body').classList.toggle('hidden'); return; }
     if (d.rest) {
       if (d.rest === 'skip') return stopRest();
@@ -665,12 +973,18 @@ const ForgeGym = (function () {
         return logWeight(Math.round(kg * 10) / 10);
       }
       case 'pick': return openPicker();
+      case 'nx-open': newEx = null; return openNewExercise();
+      case 'nx-save': return saveNewExercise();
+      case 'pick-back': newEx = null; return G.active ? openPicker() : closeSheet();
+      case 'ed-save': return saveEditor();
+      case 'save-tpl': return openSaveTemplate();
+      case 'tpl-save': return saveTemplate();
       case 'finish': return finishWorkout();
       case 'discard': return discardWorkout();
-      case 'close': return closeSheet();
+      case 'close': editing = null; return closeSheet();
       case 'demo': return loadDemo();
       case 'reset':
-        if (confirm('Delete all gym data?')) { G = fresh(); save(); closeSheet(); render(); }
+        if (confirm('Delete all gym data?')) { G = fresh(); syncCustom(); save(); closeSheet(); render(); }
         return;
       case 'save-settings': {
         const bw = parseFloat(sheet.querySelector('.set-bw').value);
@@ -685,6 +999,13 @@ const ForgeGym = (function () {
   // Typing into a set updates the data without re-rendering (keeps the keyboard up).
   function onInput(ev) {
     const i = ev.target.dataset;
+    if (i.ed && editing) {
+      if (i.ed === 'name') editing.name = ev.target.value;
+      else editing.exercises[+i.e].sets[+i.s][i.ed] = ev.target.value.replace(',', '.');
+      return;
+    }
+    if (ev.target.classList.contains('plate-in')) return renderPlates();
+    if (ev.target.classList.contains('nx-name') && newEx) { newEx.name = ev.target.value; return; }
     if (!i.in || !G.active) return;
     G.active.exercises[+i.e].sets[+i.s][i.in] = ev.target.value.replace(',', '.');
     save();
@@ -693,9 +1014,7 @@ const ForgeGym = (function () {
   function mount(el, hostApi) {
     host = hostApi;
     root = el;
-    G = Object.assign(fresh(), host.get() || {});
-    if (!G.weights) G.weights = [];
-    if (!G.recovery) G.recovery = {};
+    load();
     root.classList.add('fg');
     root.innerHTML = `
       <div class="fg-head">
@@ -726,7 +1045,7 @@ const ForgeGym = (function () {
   }
 
   // Reload from the host (e.g. after Forge loads the account's data).
-  function refresh() { if (!root) return; G = Object.assign(fresh(), host.get() || {}); if (!G.weights) G.weights = []; if (!G.recovery) G.recovery = {}; render(); }
+  function refresh() { if (!root) return; load(); render(); }
 
   // One-paragraph summary for the AI mentor's context.
   function mentorSummary() {
