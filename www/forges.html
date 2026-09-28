@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="gym/gym.css"/>
 <link rel="stylesheet" href="interests/interests.css"/>
 <link rel="stylesheet" href="leaderboard/leaderboard.css"/>
+<link rel="stylesheet" href="home/home.css"/>
 <style>
 :root {
   --bg:    #0a0a0a;
@@ -745,6 +746,12 @@ input:focus,textarea:focus{border-color:#fff;}
 
 
 <div id="page-home" class="page active">
+  <!-- 2.0 HOME (beta): home/home.js; the old home below is hidden but still filled -->
+  <div id="home2-root" style="display:none;"></div>
+  <style>
+    #page-home.v2::before{display:none!important;}
+    #page-home.v2>*:not(#home2-root):not(#pics-modal):not(#weekly-modal):not(style){display:none!important;}
+  </style>
 
   <!-- V1 STYLE: ambient background overlay for home page only -->
   <style>
@@ -1607,6 +1614,7 @@ input:focus,textarea:focus{border-color:#fff;}
 <script src="moderation.js"></script>
 <script src="mentor/agent.js"></script>
 <script src="leaderboard/leaderboard.js"></script>
+<script src="home/home.js"></script>
 <script>
 const SB_URL='https://qkcnyoiaujhxbnszrbmw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrY255b2lhdWpoeGJuc3pyYm13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTA5NTYsImV4cCI6MjA5NDA2Njk1Nn0.HVvmSGpEq2IEOH5Z5wagvFh-U0vV9eSA4n0SkWoPN3o';
@@ -1851,7 +1859,7 @@ async function checkSubscription(){
   }
 }
 
-async function startApp(){renderPrivacyToggle();renderBetaToggle();updateNotifBadge();mountGym();mountInterests();if(BETA_ENABLED){const swb=document.getElementById('share-week-bar');if(swb)swb.style.display='flex';}
+async function startApp(){renderPrivacyToggle();renderBetaToggle();updateNotifBadge();mountGym();mountInterests();showHome();if(BETA_ENABLED){const swb=document.getElementById('share-week-bar');if(swb)swb.style.display='flex';}
   checkMobile();
   renderChecklist('goals-list');renderChecklist('nonneg-list');renderChecklist('longterm-list');renderChecklist('weekly-targets-list');
   updateStatRow();renderXP();renderHealth();updateCalorieDisplay();renderLog();renderHustleStats();
@@ -2345,6 +2353,7 @@ function mountInterests(){
 }
 
 function showPage(name){
+  if(name==='home')showHome();
   if(name==='interests'&&interestsMounted)ForgeInterests.render();
   if(name==='gym'&&!GYM_ENABLED)name='home';
   if(name==='health'&&GYM_ENABLED&&gymMounted){ForgeGym.openTab('recovery');name='gym';}
@@ -4869,6 +4878,31 @@ const XP_LADDER=XP_BELTS.map(([name,at])=>({name,at,color:XP_BELT_COLORS[name]})
 // {name,color,at,next} for the leaderboard's belt chips and journey bar
 function xpBeltInfo(xp){let i=0;while(i+1<XP_LADDER.length&&xp>=XP_LADDER[i+1].at)i++;return Object.assign({},XP_LADDER[i],{next:XP_LADDER[i+1]||null});}
 xpBeltInfo.ladder=XP_LADDER;
+
+// 2.0 home (home/home.js), same look as Gym. Old home stays for non-beta.
+let homeMounted=false;
+const HOME_LISTS={goals:'goals-list',nonneg:'nonneg-list',longterm:'longterm-list'};
+function showHome(){
+  if(!BETA_ENABLED||typeof ForgeHome==='undefined')return;
+  const el=document.getElementById('home2-root'),page=document.getElementById('page-home');
+  if(!el||!page)return;
+  page.classList.add('v2');el.style.display='';
+  if(homeMounted){ForgeHome.render();return;}
+  ForgeHome.mount(el,{
+    state:()=>state,
+    toggle:(k,i)=>{if(HOME_LISTS[k]&&state[k]&&state[k][i]&&state[k][i].label)toggleCheck(k,i,HOME_LISTS[k]);},
+    edit:(k,i,v)=>{if(!HOME_LISTS[k]||!state[k]||!state[k][i])return;editLabel(k,i,v);renderChecklist(HOME_LISTS[k]);},
+    level:xp=>{const l=getLvl(xp);return{level:l,from:xpForLevel(l),to:xpForLevel(l+1)};},
+    belt:xpBeltInfo,
+    gym:()=>GYM_ENABLED&&gymMounted?{workouts:(ForgeGym.weekStats()||{}).workouts||0}:null,
+    go:(p,tab)=>{showPage(p);if(p==='gym'&&tab&&gymMounted)ForgeGym.openTab(tab);},
+    refreshBrief:()=>generateDebrief(),
+    askMentor:t=>{showPage('mentor');const i=document.getElementById('mentor-page-input');if(i){i.value=t;sendMentorMsg();}},
+    openPics:openPicsFolder,
+    picsCount:()=>(state.progressPics||[]).length,
+  });
+  homeMounted=true;
+}
 
 // 2.0 leaderboard (leaderboard/leaderboard.js), same look as Gym. Old layout stays for non-beta.
 let boardMounted=false;

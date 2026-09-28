@@ -1,0 +1,62 @@
+/* Forge Home (2.0). Builds on gym/gym.css (.fg); scoped under .fh. */
+.fg.fh { max-width: 560px; margin: 0 auto; padding: 16px 16px 110px; }
+.fh .hello { font-family: var(--fg-ui); font-weight: 700; font-size: 22px; margin: -2px 0 14px; }
+
+/* hero: ring + stats + xp bar */
+.fh .hero { display: grid; grid-template-columns: 104px 1fr; gap: 14px; align-items: center; }
+.fh .ring { width: 104px; height: 104px; }
+.fh .ring-n { font-family: var(--fg-hud); font-weight: 900; font-size: 30px; fill: #fff; }
+.fh .ring-l { font-family: var(--fg-hud); font-size: 8px; letter-spacing: 0.2em; fill: #666; }
+.fh .hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.fh .hs { background: var(--fg-bg2); border-radius: 10px; padding: 10px 4px; text-align: center; }
+.fh .hs b { display: block; font-family: var(--fg-hud); font-size: 15px; }
+.fh .hs span { font-family: var(--fg-hud); font-size: 7px; letter-spacing: 0.14em; color: var(--fg-muted); }
+.fh .hero-xp { grid-column: 1 / -1; }
+.fh .hero-xp .bar { display: block; margin-bottom: 6px; }
+
+/* brief + mentor */
+.fh .brief { margin-top: 12px; }
+.fh .brief .who { display: flex; justify-content: space-between; align-items: center; }
+.fh .brief-refresh { color: #666; font-size: 15px; padding: 0 2px; }
+.fh .fh-mentor { color: #aaa !important; font-size: 13px !important; }
+.fh .ask { display: flex; gap: 8px; margin-top: 12px; }
+.fh .ask input { flex: 1; min-width: 0; background: var(--fg-bg3); border: 1px solid var(--fg-border); border-radius: 999px; padding: 10px 14px; font-size: 16px; outline: none; font-family: var(--fg-ui); }
+.fh .ask input:focus { border-color: #555; }
+.fh .ask button { width: 40px; height: 40px; border-radius: 50%; background: var(--fg-xp); color: #fff; font-size: 16px; flex-shrink: 0; }
+
+/* goal lists */
+.fh .h2-n { color: #444; margin-left: 6px; }
+.fh .list { padding: 4px 12px; }
+.fh .list.all-done { border-color: #1f4a30; }
+.fh .hk { display: grid; grid-template-columns: 30px 1fr 30px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--fg-border); }
+.fh .hk:last-of-type { border-bottom: none; }
+.fh .hk-chk { width: 28px; height: 28px; border-radius: 8px; border: 2px solid #333; color: #000; font-size: 14px; font-weight: 900; }
+.fh .hk.done .hk-chk { background: var(--fg-good); border-color: var(--fg-good); }
+.fh .hk-in { background: none; border: none; outline: none; font-family: var(--fg-ui); font-size: 15px; padding: 6px 0; min-width: 0; width: 100%; }
+.fh .hk-in::placeholder { color: #3a3a3a; }
+.fh .hk.done .hk-in { color: #6f6f6f; text-decoration: line-through; }
+.fh .hk-xp { font-size: 11px; color: var(--fg-good); text-align: right; }
+.fh .all-note { font-size: 12px; color: var(--fg-good); text-align: center; padding: 8px 0 6px; }
+
+/* this week */
+.fh .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; height: 76px; margin-bottom: 10px; }
+.fh .wk { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 5px; }
+.fh .wk i { width: 100%; max-width: 26px; border-radius: 5px 5px 2px 2px; }
+.fh .wk span { font-size: 10px; color: #555; }
+.fh .wk.today span { color: #fff; font-weight: 700; }
+
+/* tiles + quick links */
+.fh .tiles { margin-bottom: 10px; }
+.fh .tile { text-align: left; background: var(--fg-bg1); border: 1px solid var(--fg-border); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.fh .tile:active { border-color: #555; }
+.fh .t-ic { font-size: 18px; margin-bottom: 4px; }
+.fh .tile b { font-family: var(--fg-hud); font-size: 20px; }
+.fh .tile span:last-child { font-size: 11px; color: var(--fg-muted); }
+.fh .quick { flex-wrap: wrap; overflow: visible; }
+
+/* coming up */
+.fh .ev { display: grid; grid-template-columns: 64px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--fg-border); align-items: baseline; }
+.fh .ev:last-child { border-bottom: none; }
+.fh .ev-d { font-size: 11px; color: var(--fg-xp); }
+.fh .ev-n { font-family: var(--fg-ui); font-size: 14px; }
+.fh .ev-n small { display: block; font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
