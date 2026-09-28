@@ -4,7 +4,10 @@
 // shows a preview with Share / Save. `variants` is a list of { type, data, label }.
 // Card types: workout, pr, belt, ranks, quest, skill.
 // Share uses the Web Share API with an image file where supported (phones),
-// otherwise it downloads the PNG. No personal details are drawn on the cards.
+// otherwise it downloads the PNG. In the iOS/Android apps (Capacitor) neither
+// works inside the WebView, so the PNG is written to the app cache with the
+// Filesystem plugin and handed to the native share sheet (Share plugin), which
+// also offers Save Image. No personal details are drawn on the cards.
 // Needs exercises.js (BELTS, MUSCLES) and bodymap.js (BODY_* shapes) for gym cards.
 
 const ForgeShare = (function () {
@@ -13,6 +16,15 @@ const ForgeShare = (function () {
   const HUD = 'Orbitron, monospace', MONO = '"Share Tech Mono", monospace', UI = 'Inter, -apple-system, "Segoe UI", sans-serif';
 
   let overlay = null, current = [], idx = 0, lastCanvas = null;
+  const SHARE_TEXT = 'Built with Forge · forge-app.co.uk';
+
+  // Native share needs both plugins; builds without them fall back to the web path.
+  function nativePlugins() {
+    const cap = window.Capacitor;
+    if (!cap || !cap.isNativePlatform || !cap.isNativePlatform() || !cap.Plugins) return null;
+    const { Share, Filesystem } = cap.Plugins;
+    return Share && Filesystem ? { Share, Filesystem } : null;
+  }
 
   async function loadFonts() {
     if (!document.fonts || !document.fonts.load) return;
@@ -341,7 +353,7 @@ const ForgeShare = (function () {
       <button class="fs-close" aria-label="Close">✕</button>
       <div class="fs-tabs"></div>
       <img class="fs-img" alt="Share card preview"/>
-      <div class="fs-btns"><button class="fs-save">Save image</button><button class="fs-share">Share</button></div>
+      <div class="fs-btns">${nativePlugins() ? '' : '<button class="fs-save">Save image</button>'}<button class="fs-share">${nativePlugins() ? 'Share or save' : 'Share'}</button></div>
       <div class="fs-note">Post it to your story. Nothing personal is on the card.</div>`;
     document.body.appendChild(overlay);
     overlay.addEventListener('click', e => {
@@ -369,13 +381,36 @@ const ForgeShare = (function () {
   function blob() { return new Promise(r => lastCanvas.toBlob(r, 'image/png')); }
   async function share() {
     if (!lastCanvas) return;
+    const native = nativePlugins();
+    if (native) return shareNative(native);
     const b = await blob();
     const file = new File([b], fileName(), { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], text: 'Built with Forge · forge-app.co.uk' }); } catch (e) { /* user cancelled */ }
+      try { await navigator.share({ files: [file], text: SHARE_TEXT }); } catch (e) { /* user cancelled */ }
     } else {
       download();
     }
+  }
+  async function shareNative({ Share, Filesystem }) {
+    const btn = overlay && overlay.querySelector('.fs-share');
+    if (btn) btn.disabled = true;
+    try {
+      const data = lastCanvas.toDataURL('image/png').split(',')[1];
+      const { uri } = await Filesystem.writeFile({ path: fileName(), data, directory: 'CACHE' });
+      await Share.share({ files: [uri], text: SHARE_TEXT, dialogTitle: 'Share your Forge card' });
+    } catch (e) {
+      // closing the share sheet rejects with "Share canceled"; anything else is a real failure
+      if (!/cancel/i.test(String(e && (e.message || e)))) {
+        console.log('Native share failed:', e);
+        alertBox("Couldn't open sharing. Try again.");
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+  function alertBox(msg) {
+    const n = overlay && overlay.querySelector('.fs-note');
+    if (n) { const old = n.textContent; n.textContent = msg; setTimeout(() => { n.textContent = old; }, 3000); }
   }
   async function download() {
     if (!lastCanvas) return;

@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/></head><body style="background:#000">
+<pre id="out"></pre>
+<script>
+// Checks share.js in both modes. ?mode=native fakes the Capacitor app bridge
+// (Share + Filesystem plugins) and records the calls; ?mode=web leaves it out.
+const mode = new URLSearchParams(location.search).get('mode') || 'native';
+window.__calls = [];
+if (mode === 'native' || mode === 'cancel') {
+  window.Capacitor = {
+    isNativePlatform: () => true,
+    Plugins: {
+      Filesystem: { writeFile: async o => { __calls.push(['writeFile', o.path, o.directory, o.data.slice(0, 12), o.data.length]); return { uri: 'file:///cache/' + o.path }; } },
+      Share: { share: async o => { __calls.push(['share', o.files && o.files[0], o.text]); if (mode === 'cancel') throw new Error('Share canceled'); return {}; } },
+    },
+  };
+}
+</script>
+<script src="../www/share/share.js"></script>
+<script>
+(async () => {
+  const out = [];
+  const ok = (n, c, x) => out.push((c ? 'PASS ' : 'FAIL ') + n + (x !== undefined ? '  [' + JSON.stringify(x) + ']' : ''));
+  try {
+    ForgeShare.open([{ type: 'streak', label: 'Streak', data: { days: 12, best: 12, line: 'Keep going' } }]);
+    for (let i = 0; i < 40 && !document.querySelector('#forge-share .fs-img[src^="data:"]'); i++) await new Promise(r => setTimeout(r, 100));
+    const btns = [...document.querySelectorAll('#forge-share .fs-btns button')].map(b => b.textContent);
+    if (mode === 'web') {
+      ok('web keeps Save + Share buttons', btns.join('|') === 'Save image|Share', btns);
+    } else {
+      ok('app shows one "Share or save" button', btns.join('|') === 'Share or save', btns);
+      document.querySelector('#forge-share .fs-share').click();
+      for (let i = 0; i < 30 && __calls.length < 2; i++) await new Promise(r => setTimeout(r, 100));
+      const w = __calls.find(c => c[0] === 'writeFile'), s = __calls.find(c => c[0] === 'share');
+      ok('PNG written to app cache as base64', w && w[1] === 'forge-streak.png' && w[2] === 'CACHE' && w[3].startsWith('iVBORw0KGgo') && w[4] > 10000, w);
+      ok('share sheet gets the file', s && s[1] === 'file:///cache/forge-streak.png', s);
+      await new Promise(r => setTimeout(r, 200));
+      const note = document.querySelector('#forge-share .fs-note').textContent;
+      ok(mode === 'cancel' ? 'cancelling shows no error' : 'no error after sharing', !/Couldn/.test(note), note);
+      ok('button re-enabled', !document.querySelector('#forge-share .fs-share').disabled);
+    }
+  } catch (e) { out.push('ERROR ' + e.stack); }
+  document.getElementById('out').textContent = out.join('\n');
+})();
+</script>
+</body></html>

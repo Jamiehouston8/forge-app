@@ -3912,12 +3912,23 @@ async function changePassword(){
   }catch(e){if(msg){msg.textContent='Connection error. Try again.';msg.style.color='#888';}}
 }
 
-function exportData(){
+async function exportData(){
   const dataStr=JSON.stringify(state,null,2);
+  const name='forge-data-'+new Date().toISOString().split('T')[0]+'.json';
+  // In the apps a download link does nothing, so save to the cache and open the share sheet (Save to Files etc.)
+  const cap=window.Capacitor, P=cap&&cap.isNativePlatform&&cap.isNativePlatform()&&cap.Plugins;
+  if(P&&P.Filesystem&&P.Share){
+    try{
+      const {uri}=await P.Filesystem.writeFile({path:name,data:dataStr,directory:'CACHE',encoding:'utf8'});
+      await P.Share.share({files:[uri],dialogTitle:'Export your Forge data'});
+      log('data exported');
+    }catch(e){if(!/cancel/i.test(String(e&&(e.message||e))))toast('Could not export. Try again.');}
+    return;
+  }
   const blob=new Blob([dataStr],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download='lifeos-data-'+new Date().toISOString().split('T')[0]+'.json';
+  a.href=url;a.download=name;
   a.click();URL.revokeObjectURL(url);
   log('data exported');
 }
