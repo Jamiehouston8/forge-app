@@ -4713,6 +4713,27 @@ let lbData = [];
 
 
 
+// Other users' public fields only: username, XP, streaks, goal counts, interests
+// (supabase/sql/04-public-profiles.sql). Never read other users' lifeos rows.
+async function fetchPublicProfiles(filter){
+  const res=await fetch(SB_URL+'/rest/v1/rpc/public_profiles'+(filter?'?'+filter:''),{
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+(userToken||SB_KEY)}
+  });
+  const rows=await res.json();
+  if(!Array.isArray(rows))throw new Error((rows&&rows.message)||'Failed to load profiles');
+  return rows;
+}
+// Shape a public profile like the data blob the friend screens were written for.
+// Level and belt come from XP (they were never saved, so cards always said LV 1).
+function publicToData(p){
+  const level=getLvl(p.xp||0);
+  const interests={};(p.interests||[]).forEach(k=>{interests[k]=true;});
+  return {username:p.username,private:!!p.is_private,xp:p.xp||0,streak:p.streak||0,
+    streakData:{current:p.streak||0,best:p.best_streak||0},level,
+    beltLabel:level>=10?'Red Belt':level>=5?'Yellow Belt':'White Belt',
+    goalsToday:p.goals_done||0,goalsDone:p.goals_done||0,nonnegDone:p.nonneg_done||0,longtermDone:p.longterm_done||0,interests};
+}
+
 async function loadLeaderboard(){
   const loading = document.getElementById('lb-loading');
   const podium = document.getElementById('lb-podium');
@@ -4724,33 +4745,20 @@ async function loadLeaderboard(){
   if(empty) empty.style.display='none';
 
   try {
-    // Fetch all lifeos records
-    const res = await fetch(SB_URL+'/rest/v1/lifeos?select=user_id,data,updated_at', {
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+(userToken||SB_KEY)}
-    });
-    const rows = await res.json();
-    if(!Array.isArray(rows)) throw new Error('Failed to load data');
+    const rows = await fetchPublicProfiles();
 
     lbData = rows.map(r => {
-      const d = r.data || {};
-      const xp = d.xp || 0;
-      const lvl = getLvl(xp);
-      const streak = d.streakData?.current || d.streak || 0;
-      const bestStreak = d.streakData?.best || 0;
-      const name = d.username || d.profile?.username || d.profile?.name || 'Anonymous';
-      const goalsDone = (d.goals||[]).filter(g=>g.done&&g.label).length;
-      const nonnegDone = (d.nonneg||[]).filter(g=>g.done&&g.label).length;
-      const longtermDone = (d.longterm||[]).filter(g=>g.done&&g.label).length;
+      const xp = r.xp || 0;
       return {
         userId: r.user_id,
-        name,
+        name: r.username || 'Anonymous',
         xp,
-        level: lvl,
-        streak,
-        bestStreak,
-        goalsDone,
-        nonnegDone,
-        longtermDone,
+        level: getLvl(xp),
+        streak: r.streak || 0,
+        bestStreak: r.best_streak || 0,
+        goalsDone: r.goals_done || 0,
+        nonnegDone: r.nonneg_done || 0,
+        longtermDone: r.longterm_done || 0,
         isMe: currentUser && r.user_id === currentUser.id
       };
     }).filter(u => u.name !== 'Anonymous' || u.xp > 0);
@@ -5694,16 +5702,13 @@ async function searchFriend(){
   resultEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:#555;">Searching...</div>';
 
   try {
-    var res = await fetch(SB_URL + '/rest/v1/lifeos?select=user_id,data&data->>username=eq.' + encodeURIComponent(input.trim()), {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (userToken||SB_KEY) }
-    });
-    var rows = await res.json();
+    var rows = await fetchPublicProfiles('username=eq.' + encodeURIComponent(input.trim()));
     if(!rows || !rows.length){
       resultEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:#555;">No user found with that username.</div>';
       return;
     }
     var user = rows[0];
-    var data = typeof user.data === 'string' ? JSON.parse(user.data) : (user.data || {});
+    var data = publicToData(user);
     window._foundFriendId = user.user_id;
     window._foundFriendUsername = data.username || input.trim();
     if(data.private){
@@ -5761,11 +5766,8 @@ async function renderFriendsList(){
   for(var i=0; i<state.friends.length; i++){
     var friend = state.friends[i];
     try {
-      var res = await fetch(SB_URL + '/rest/v1/lifeos?select=data&user_id=eq.' + friend.userId, {
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (userToken||SB_KEY) }
-      });
-      var rows = await res.json();
-      var data = (rows && rows[0] && rows[0].data) || {};
+      var rows = await fetchPublicProfiles('user_id=eq.' + encodeURIComponent(friend.userId));
+      var data = rows[0] ? publicToData(rows[0]) : {};
       if(data.private){
         html += buildFriendCard(friend.userId, friend.username, null, true);
       } else {
@@ -5831,11 +5833,8 @@ async function openFriendProfile(userId, username){
   modal.style.display = 'block';
 
   try {
-    var res = await fetch(SB_URL + '/rest/v1/lifeos?select=data&user_id=eq.' + userId, {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (userToken||SB_KEY) }
-    });
-    var rows = await res.json();
-    var data = (rows && rows[0] && rows[0].data) || {};
+    var rows = await fetchPublicProfiles('user_id=eq.' + encodeURIComponent(userId));
+    var data = rows[0] ? publicToData(rows[0]) : {};
 
     if(data.private){
       content.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:32px;margin-bottom:16px;">🔒</div><div style="font-family:var(--font-hud);font-size:14px;color:#fff;letter-spacing:0.1em;">PRIVATE PROFILE</div><div style="font-family:var(--font-mono);font-size:11px;color:#555;margin-top:8px;">This user has hidden their profile.</div></div>';
@@ -5967,16 +5966,13 @@ async function accountSearchFriend(){
   if(!input){ resultEl.innerHTML = ''; return; }
   resultEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:#555;">Searching...</div>';
   try {
-    var res = await fetch(SB_URL + '/rest/v1/lifeos?select=user_id,data&data->>username=eq.' + encodeURIComponent(input.trim()), {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (userToken||SB_KEY) }
-    });
-    var rows = await res.json();
+    var rows = await fetchPublicProfiles('username=eq.' + encodeURIComponent(input.trim()));
     if(!rows || !rows.length){
       resultEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:10px;color:#555;">No user found with that username.</div>';
       return;
     }
     var user = rows[0];
-    var data = typeof user.data === 'string' ? JSON.parse(user.data) : (user.data || {});
+    var data = publicToData(user);
     window._foundFriendId = user.user_id;
     window._foundFriendUsername = data.username || input.trim();
     if(data.private){
@@ -6004,13 +6000,10 @@ async function lbQuickAddFriend(){
   var input = document.getElementById('lb-friend-search').value.trim();
   if(!input){ toast('Enter a username'); return; }
   try {
-    var res = await fetch(SB_URL + '/rest/v1/lifeos?select=user_id,data&data->>username=eq.' + encodeURIComponent(input), {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (userToken||SB_KEY) }
-    });
-    var rows = await res.json();
+    var rows = await fetchPublicProfiles('username=eq.' + encodeURIComponent(input));
     if(!rows || !rows.length){ toast('No user found: ' + input); return; }
     var user = rows[0];
-    var data = typeof user.data === 'string' ? JSON.parse(user.data) : (user.data || {});
+    var data = publicToData(user);
     var username = data.username || input;
     window._foundFriendId = user.user_id;
     window._foundFriendUsername = username;
