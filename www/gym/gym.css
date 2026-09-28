@@ -190,3 +190,24 @@
 .fg .plate-bar b { flex: 1; height: 8px; background: #888; border-radius: 0 4px 4px 0; max-width: 140px; }
 .fg .plate-list { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; }
 .fg .plate-list span { background: var(--fg-bg3); border-radius: 8px; padding: 6px 10px; }
+
+/* friends: ranks list + you vs them */
+.fg .c-good { color: var(--fg-good); }
+.fg .fr-row { display: grid; grid-template-columns: 22px 1fr auto auto; gap: 10px; align-items: center; width: 100%; padding: 12px 0; border-bottom: 1px solid var(--fg-border); text-align: left; }
+.fg .fr-row:last-child { border-bottom: none; }
+.fg .fr-row.me { grid-template-columns: 22px 1fr auto; }
+.fg .fr-row.me .fr-name { color: var(--fg-xp); }
+.fg .fr-n { font-size: 12px; color: var(--fg-muted); }
+.fg .fr-name { font-family: var(--fg-ui); font-weight: 600; font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg .fr-name span { display: block; font-family: var(--fg-mono); font-weight: 400; font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+.fg .cmp-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+.fg .cmp-maps figure { margin: 0; text-align: center; min-width: 0; }
+.fg .cmp-maps .bodymap { max-width: 150px; }
+.fg .cmp-maps figcaption { font-family: var(--fg-hud); font-size: 7px; letter-spacing: 0.18em; color: #555; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg .cmp-row { display: grid; grid-template-columns: 1fr 96px 16px 96px; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--fg-border); font-size: 13px; }
+.fg .cmp-row:last-child { border-bottom: none; }
+.fg .cmp-row .belt { justify-content: center; padding: 4px 6px; font-size: 8px; }
+.fg .cmp-row > span:not(.belt) { text-align: center; }
+.fg .cmp-head { font-family: var(--fg-hud); font-size: 8px; letter-spacing: 0.14em; color: var(--fg-muted); padding: 10px 0 6px; }
+.fg .cmp-head span { text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg .cmp-m { font-family: var(--fg-ui); font-weight: 600; }

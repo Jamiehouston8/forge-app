@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=430"/>
+<link rel="stylesheet" href="../../www/gym/gym.css"/>
+<style>body{background:#000;margin:0}</style>
+</head><body>
+<div id="app" class="fg-root"></div>
+<pre id="out"></pre>
+<script src="../../www/gym/exercises.js"></script>
+<script src="../../www/gym/bodymap.js"></script>
+<script src="../../www/gym/gym.js"></script>
+<script>
+// Friends ranks + You vs them. ?shot=ranks|compare leaves that screen up.
+window.confirm = () => true;
+let store = null;
+const FRIENDS = [
+  { userId: 'u-alice', username: 'alice#1111', gym: { overall: 5, workouts7: 4, ranks: { chest: 6, back: 5, quads: 7, shoulders: 3, biceps: 4 } } },
+  { userId: 'u-bob', username: 'bob#2222', gym: null },
+  { userId: 'u-evil', username: '<b>evil</b>', gym: { overall: 1, workouts7: 1, ranks: { chest: 1 } } },
+];
+const host = {
+  get: () => store && JSON.parse(JSON.stringify(store)), put: d => { store = JSON.parse(JSON.stringify(d)); },
+  toast: () => {}, dev: true, friends: () => new Promise(r => setTimeout(() => r(FRIENDS), 50)),
+};
+const out = [];
+const ok = (n, c, x) => out.push((c ? 'PASS ' : 'FAIL ') + n + (x !== undefined ? '  [' + JSON.stringify(x) + ']' : ''));
+const app = document.getElementById('app');
+const click = sel => { const el = document.querySelector(sel); if (!el) throw new Error('missing ' + sel); el.click(); };
+const shot = new URLSearchParams(location.search).get('shot');
+(async () => {
+  try {
+    ForgeGym.mount(app, host);
+    click('[data-act="settings"]'); click('[data-act="demo"]');
+    const ps = ForgeGym.publicSummary();
+    ok('publicSummary has belts only', Number.isInteger(ps.overall) && Object.values(ps.ranks).every(Number.isInteger) && Object.keys(ps).sort().join() === 'overall,ranks,workouts7', ps);
+    click('[data-tab="ranks"]');
+    ok('shows loading first', /Loading friends/.test(app.textContent));
+    await new Promise(r => setTimeout(r, 300));
+    const rows = [...app.querySelectorAll('.fr-row')].map(r => r.querySelector('.fr-name').firstChild.textContent);
+    ok('friends + you listed, best belt first', rows[0] === 'alice#1111' && rows.includes('You') && rows[rows.length - 1] === 'bob#2222', rows);
+    ok('friend names escaped', !app.querySelector('.fr-row b') && /&lt;b&gt;evil/.test(app.innerHTML));
+    ok('friend without gym says so', /No gym ranks yet/.test(app.textContent));
+    if (shot === 'ranks') { app.querySelector('.fr-row').scrollIntoView(); throw 'stop'; }
+    click('[data-cmp="u-alice"]');
+    const sheet = document.querySelector('.fg-sheet');
+    ok('compare sheet opens with 4 body maps', sheet.querySelectorAll('.cmp-maps svg').length === 4);
+    ok('13 muscle rows', sheet.querySelectorAll('.cmp-row:not(.cmp-head)').length === 13);
+    ok('head-to-head summary', /lead/.test(sheet.querySelector('.coach p').textContent), sheet.querySelector('.coach p').textContent);
+    if (shot === 'compare') throw 'stop';
+    click('.fg-sheet [data-act="close"]');
+    click('[data-cmp="u-bob"]');
+    ok('no-gym friend compare', /hasn't earned any gym ranks/.test(document.querySelector('.fg-sheet .coach p').textContent));
+  } catch (e) { if (e !== 'stop') out.push('ERROR ' + (e.stack || e)); }
+  document.getElementById('out').textContent = out.join('\n');
+  if (shot) document.getElementById('out').style.display = 'none';
+})();
+</script>
+</body></html>

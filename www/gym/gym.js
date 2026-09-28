@@ -8,6 +8,9 @@
 //   host.awardXP(n, reason) → optional; Forge adds it to the main XP/level
 //   host.dev                → optional; shows prototype tools (demo data)
 //   host.share(variants)    → optional; opens share cards (see share/share.js)
+//   host.friends()          → optional; Promise of [{ userId, username, gym }] where
+//                             gym = publicSummary() of that friend (or null). Turns on
+//                             the Friends section of Ranks and the You vs them sheet.
 //   host.health             → optional { get() → {sleep, water}, set({sleep?, water?}) }
 //                             Forge passes its daily state.health so the home
 //                             screen and mentor see what's logged in Recovery.
@@ -22,6 +25,7 @@ const ForgeGym = (function () {
   let lastSummary = null;
   let tab = 'train', bodyMode = 'rank', selectedMuscle = null, pickerFilter = 'all', sleepCustomOpen = false;
   let historyMode = 'workouts', editing = null, tplSource = null, newEx = null;
+  let friends = { list: null, at: 0, loading: false, error: false };
 
   function fresh() { return { bodyweight: 80, rest: 90, bar: 20, xp: 0, workouts: [], active: null, weights: [], recovery: {}, custom: [], templates: [] }; }
   function save() { host.put(G); }
@@ -704,7 +708,74 @@ const ForgeGym = (function () {
         </div>`).join('')}
       </div>
       ${host.share && o ? '<button class="btn btn-ghost" style="margin-top:12px" data-act="share-ranks">Share my rank ↗</button>' : ''}
+      ${host.friends ? friendsHTML() : ''}
       <div class="small muted" style="margin-top:12px;line-height:1.6">Ranks compare your estimated one-rep max to your bodyweight (${fmtKg(G.bodyweight)}). Change it in gym settings ⚙.</div>`;
+  }
+
+  // ───────── friends ─────────
+  // Friends' ranks come from their saved publicSummary(): belt per muscle, overall
+  // belt and workouts this week. Never weights or lifts.
+  function loadFriends(force) {
+    if (!host.friends || friends.loading) return;
+    if (!force && friends.list && Date.now() - friends.at < 60000) return;
+    friends.loading = true;
+    Promise.resolve(host.friends()).then(list => {
+      friends = { list: list || [], at: Date.now(), loading: false, error: false };
+    }).catch(() => {
+      friends = { list: friends.list, at: Date.now(), loading: false, error: true };
+    }).then(() => { if (tab === 'ranks') render(); });
+  }
+  const beltOf = i => (i === null || i === undefined) ? null : BELTS[i] || null;
+
+  function friendsHTML() {
+    loadFriends();
+    const me = publicSummary();
+    let body;
+    if (!friends.list) body = `<div class="small muted" style="padding:14px 0;text-align:center">${friends.error ? 'Couldn\'t load friends. Try again later.' : 'Loading friends…'}</div>`;
+    else if (!friends.list.length) body = `<div class="small muted" style="padding:14px 0;line-height:1.6">Add friends (Account → Add a friend) to compare belts muscle by muscle.</div>`;
+    else {
+      const rows = friends.list.map(f => ({ f, i: f.gym && f.gym.overall !== null && f.gym.overall !== undefined ? f.gym.overall : -1 }))
+        .concat([{ me: true, i: me.overall === null ? -1 : me.overall }])
+        .sort((a, b) => b.i - a.i);
+      body = rows.map((r, n) => r.me
+        ? `<div class="fr-row me"><span class="fr-n">${n + 1}</span><div class="fr-name">You<span>${me.workouts7} workout${me.workouts7 === 1 ? '' : 's'} this week</span></div>${beltChip(beltOf(me.overall))}</div>`
+        : `<button class="fr-row" data-cmp="${esc(r.f.userId)}"><span class="fr-n">${n + 1}</span><div class="fr-name">${esc(r.f.username || 'Friend')}<span>${r.f.gym ? `${r.f.gym.workouts7 || 0} workout${r.f.gym.workouts7 === 1 ? '' : 's'} this week` : 'No gym ranks yet'}</span></div>${beltChip(r.f.gym && beltOf(r.f.gym.overall))}<span class="ex-more">›</span></button>`).join('');
+    }
+    return `<h2>FRIENDS</h2><div class="card" style="padding:4px 14px">${body}</div>
+      ${friends.list && friends.list.length ? '<div class="small muted" style="margin-top:8px">Tap a friend to compare muscle by muscle. Only belts are shared, never your weights.</div>' : ''}`;
+  }
+
+  function openCompare(userId) {
+    const f = (friends.list || []).find(x => x.userId === userId);
+    if (!f) return;
+    const me = publicSummary(), them = f.gym || { ranks: {}, overall: null };
+    const name = esc(f.username || 'Friend');
+    const color = i => { const b = beltOf(i); return b ? (b.name === 'Black' ? '#f5f5f5' : b.color) : null; };
+    const mine = m => color(me.ranks[m]), theirs = m => color(them.ranks[m]);
+    let lead = 0, trail = 0;
+    const rows = Object.keys(MUSCLES).map(m => {
+      const a = me.ranks[m], b = them.ranks[m];
+      const av = a === undefined ? -1 : a, bv = b === undefined ? -1 : b;
+      if (av > bv) lead++; else if (bv > av) trail++;
+      const mark = av > bv ? '<span class="c-good">◀</span>' : bv > av ? '<span class="c-pr">▶</span>' : '<span class="muted">=</span>';
+      return `<div class="cmp-row"><div class="cmp-m">${MUSCLES[m]}</div>${beltChip(beltOf(a))}${mark}${beltChip(beltOf(b))}</div>`;
+    }).join('');
+    const summary = !f.gym ? `${name} hasn't earned any gym ranks yet.`
+      : lead === trail ? `Dead even: you each lead in ${lead} muscle${lead === 1 ? '' : 's'}.`
+      : lead > trail ? `You lead in ${lead} muscle${lead === 1 ? '' : 's'}, ${name} leads in ${trail}.`
+      : `${name} leads in ${trail} muscle${trail === 1 ? '' : 's'}, you lead in ${lead}. Time to train.`;
+    openSheet(`<div class="sheet-title">YOU VS ${name.toUpperCase()} <button data-act="close">✕</button></div>
+      <div class="cmp-maps">
+        <figure>${bodySVG('front', mine, {})}<figcaption>YOU · FRONT</figcaption></figure>
+        <figure>${bodySVG('front', theirs, {})}<figcaption>${name.toUpperCase()} · FRONT</figcaption></figure>
+        <figure>${bodySVG('back', mine, {})}<figcaption>YOU · BACK</figcaption></figure>
+        <figure>${bodySVG('back', theirs, {})}<figcaption>${name.toUpperCase()} · BACK</figcaption></figure>
+      </div>
+      <div class="card coach" style="margin-top:12px"><div class="who">HEAD TO HEAD</div><p>${summary}</p></div>
+      <div class="card" style="margin-top:10px;padding:4px 14px">
+        <div class="cmp-row cmp-head"><div></div><span>YOU</span><span></span><span>${name.toUpperCase()}</span></div>
+        ${rows}
+      </div>`);
   }
 
   function recoveryHTML() {
@@ -927,6 +998,7 @@ const ForgeGym = (function () {
     if (d.sleep) { sleepCustomOpen = false; return setRecovery({ sleep: Number(d.sleep) }); }
     if (d.water) return setRecovery({ water: Math.max(0, todayRecovery().water + Number(d.water)) });
     if (d.lift) { ev.preventDefault(); return openLift(d.lift); }
+    if (d.cmp) return openCompare(d.cmp);
     if (d.hmode) { historyMode = d.hmode; return render(); }
     if (d.edit) return openEditor(d.edit);
     if (d.delw) return deleteWorkout(d.delw);
@@ -1080,5 +1152,15 @@ const ForgeGym = (function () {
 
   function openTab(name) { tab = name; render(); }
 
-  return { mount, refresh, mentorSummary, render, openTab, weekStats };
+  // What friends can see: belt index (into BELTS) per ranked muscle, overall belt,
+  // workouts in the last 7 days. The host saves it where friends can read it.
+  function publicSummary() {
+    if (!G) return { overall: null, ranks: {}, workouts7: 0 };
+    const ranks = {};
+    for (const m in MUSCLES) { const r = muscleRank(m); if (r) ranks[m] = r.index; }
+    const o = overallRank();
+    return { overall: o ? BELTS.indexOf(o.belt) : null, ranks, workouts7: G.workouts.filter(w => w.end > Date.now() - 7 * DAY).length };
+  }
+
+  return { mount, refresh, mentorSummary, render, openTab, weekStats, publicSummary };
 })();

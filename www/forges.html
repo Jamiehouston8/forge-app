@@ -2285,7 +2285,14 @@ function mountGym(){
   if(!el)return;
   ForgeGym.mount(el,{
     get:()=>state&&state.gym,
-    put:d=>{state.gym=d;save();},
+    // gymPublic = belts only, what friends see (rpc/public_profiles exposes it)
+    put:d=>{state.gym=d;try{state.gymPublic=ForgeGym.publicSummary();}catch(e){}save();},
+    friends:async()=>{
+      const ids=(state.friends||[]).map(f=>f.userId).filter(id=>/^[0-9a-f-]{36}$/i.test(id)&&!isBlocked(id));
+      if(!ids.length||!userToken)return [];
+      const rows=await fetchPublicProfiles('user_id=in.('+ids.join(',')+')');
+      return rows.filter(r=>!r.is_private).map(r=>({userId:r.user_id,username:ForgeModeration.cleanName(r.username),gym:r.gym||null}));
+    },
     toast:m=>toast(m,true),
     awardXP:(n,reason)=>awardXP(n,reason),
     share:v=>ForgeShare.open(v),
@@ -2297,6 +2304,8 @@ function mountGym(){
     },
   });
   gymMounted=true;
+  // existing gym users get their friend-visible summary without waiting for a new workout
+  if(state.gym&&!state.gymPublic){try{state.gymPublic=ForgeGym.publicSummary();save();}catch(e){}}
   // 2.0 replaces the Health page with Gym > Recovery.
   const navHealth=document.getElementById('nav-health');
   if(navHealth)navHealth.style.display='none';
@@ -4754,7 +4763,8 @@ function publicToData(p){
   return {username:ForgeModeration.cleanName(p.username),private:!!p.is_private,xp:p.xp||0,streak:p.streak||0,
     streakData:{current:p.streak||0,best:p.best_streak||0},level,
     beltLabel:xpBelt(p.xp||0),
-    goalsToday:p.goals_done||0,goalsDone:p.goals_done||0,nonnegDone:p.nonneg_done||0,longtermDone:p.longterm_done||0,interests};
+    goalsToday:p.goals_done||0,goalsDone:p.goals_done||0,nonnegDone:p.nonneg_done||0,longtermDone:p.longterm_done||0,interests,
+    gymBelt:(p.gym&&typeof BELTS!=='undefined'&&BELTS[p.gym.overall])?BELTS[p.gym.overall].name:null};
 }
 
 // ── REPORT / BLOCK (App Store guideline 1.2) ──
@@ -5984,7 +5994,7 @@ async function openFriendProfile(userId, username){
 
     content.innerHTML = '<div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;padding:24px;margin-bottom:16px;">'
       +'<div style="font-family:var(--font-hud);font-size:20px;color:#fff;letter-spacing:0.08em;margin-bottom:4px;">'+username+'</div>'
-      +'<div style="font-family:var(--font-mono);font-size:11px;color:#555;margin-bottom:20px;">LV '+(data.level||1)+' · '+(data.beltLabel||'White Belt')+'</div>'
+      +'<div style="font-family:var(--font-mono);font-size:11px;color:#555;margin-bottom:20px;">LV '+(data.level||1)+' · '+(data.beltLabel||'White Belt')+(GYM_ENABLED&&data.gymBelt?' · Gym: '+data.gymBelt+' belt':'')+'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
       +'<div style="background:#141414;border-radius:8px;padding:14px;text-align:center;"><div style="font-family:var(--font-hud);font-size:24px;color:#fff;">'+(data.xp||0)+'</div><div style="font-family:var(--font-mono);font-size:9px;color:#555;margin-top:4px;">TOTAL XP</div></div>'
       +'<div style="background:#141414;border-radius:8px;padding:14px;text-align:center;"><div style="font-family:var(--font-hud);font-size:24px;color:#ffd166;">'+(data.streak||0)+'</div><div style="font-family:var(--font-mono);font-size:9px;color:#555;margin-top:4px;">DAY STREAK</div></div>'

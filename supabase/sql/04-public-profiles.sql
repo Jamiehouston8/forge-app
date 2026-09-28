@@ -8,7 +8,9 @@
 -- Called from the app as GET /rest/v1/rpc/public_profiles, filterable like a
 -- table, e.g. ?username=eq.jamie%230001 or ?user_id=eq.<uuid>.
 
-create or replace function public.public_profiles()
+-- drop first: create or replace can't change the returned columns
+drop function if exists public.public_profiles();
+create function public.public_profiles()
 returns table (
   user_id       uuid,
   username      text,
@@ -20,6 +22,7 @@ returns table (
   nonneg_done   integer,
   longterm_done integer,
   interests     text[],
+  gym           jsonb,
   updated_at    timestamptz
 )
 language sql
@@ -61,6 +64,15 @@ as $$
       select left(regexp_replace(e.key, '[^[:alnum:]#_ .-]', '', 'g'), 30) from jsonb_each(case when jsonb_typeof(n.data->'interests') = 'object' then n.data->'interests' else '{}'::jsonb end) e
       where e.value not in ('false'::jsonb, 'null'::jsonb, '""'::jsonb, '0'::jsonb)
       limit 6) end as interests,
+    -- gym ranks the app saves in data.gymPublic: belt indexes 0-7 only, no weights
+    case when n.priv or jsonb_typeof(n.data->'gymPublic') is distinct from 'object' then null else jsonb_build_object(
+      'overall', case when (n.data->'gymPublic'->>'overall') ~ '^[0-7]$' then (n.data->'gymPublic'->>'overall')::int end,
+      'workouts7', case when (n.data->'gymPublic'->>'workouts7') ~ '^[0-9]{1,2}$' then (n.data->'gymPublic'->>'workouts7')::int else 0 end,
+      'ranks', (select coalesce(jsonb_object_agg(e.key, e.value::int), '{}'::jsonb)
+                from jsonb_each_text(case when jsonb_typeof(n.data->'gymPublic'->'ranks') = 'object' then n.data->'gymPublic'->'ranks' else '{}'::jsonb end) e
+                where e.key in ('chest','shoulders','triceps','biceps','forearms','traps','back','lowerback','abs','glutes','quads','hamstrings','calves')
+                  and e.value ~ '^[0-7]$')
+    ) end as gym,
     n.updated_at
   from num n
   where auth.role() = 'authenticated'
